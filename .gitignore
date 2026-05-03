@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment variables
+.env
+backend/.env
+
+# Uploads (media files - too large for git)
+uploads/
+backend/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Expo
+mobile/.expo/
+mobile/dist/
+
+# Scratch/temp files
+backend/scratch/
+
+# Logs
+*.log
+npm-debug.log*

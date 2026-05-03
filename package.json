@@ -1,0 +1,10 @@
+{
+  "name": "horizon-tourism",
+  "version": "1.0.0",
+  "description": "Horizon Tourism Management System",
+  "scripts": {
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd mobile && npx expo start",
+    "dev": "npm run backend"
+  }
+}

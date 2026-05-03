@@ -2,14 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, 
   TextInput, Alert, ActivityIndicator, ScrollView, Switch, 
-  Image, KeyboardAvoidingView, Platform, RefreshControl 
+  Image, KeyboardAvoidingView, Platform, RefreshControl,
+  StatusBar, SafeAreaView, Dimensions
 } from 'react-native';
 import { transportService, driverService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { getImageUrl } from '../utils/imageHelper';
 
-const TransportManageScreen = () => {
+const TransportManageScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('Vehicles');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -20,6 +22,10 @@ const TransportManageScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  
+  // --- DRIVER STATE ---
+  const [driverSearchQuery, setDriverSearchQuery] = useState('');
+  const [driverActiveFilter, setDriverActiveFilter] = useState('All');
   
   const [vehicleType, setVehicleType] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
@@ -46,6 +52,8 @@ const TransportManageScreen = () => {
   const [driverImage, setDriverImage] = useState(null);
   const [driverAvailable, setDriverAvailable] = useState(true);
   const [editingDriverId, setEditingDriverId] = useState(null);
+  const [vehicleErrors, setVehicleErrors] = useState({});
+  const [driverErrors, setDriverErrors] = useState({});
 
   const fetchData = async () => {
     try {
@@ -87,13 +95,14 @@ const TransportManageScreen = () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [1, 1], // Square for avatar
+      aspect: [1, 1],
       quality: 0.7,
     });
     if (!result.canceled) setDriverImage(result.assets[0].uri);
   };
 
   const handleVehicleSubmit = async () => {
+    // --- VALIDATION START: Comprehensive Vehicle Registration Rules ---
     if (!vehicleType || !vehicleModel || !vehicleNumber || !mobileNumber || !location || !price) {
       Alert.alert('Validation Error', 'Please fill all required fields');
       return;
@@ -102,19 +111,23 @@ const TransportManageScreen = () => {
       Alert.alert('Validation Error', 'Vehicle photo is compulsory');
       return;
     }
+    // Rule: Model must contain letters
     if (!/[a-zA-Z]/.test(vehicleModel)) {
       Alert.alert('Validation Error', 'Model must contain letters, not just numbers');
       return;
     }
+    // Rule: Specific Sri Lankan Plate Format (e.g. WP KG-1234)
     const plateRegex = /^[a-zA-Z]{2}\s[a-zA-Z]{2,3}-\d{4}$/i;
     if (!plateRegex.test(vehicleNumber)) {
       Alert.alert('Validation Error', 'Plate format must be like "wp KG-1234" or "wp BAF-1245"');
       return;
     }
+    // Rule: 10 digit phone number
     if (mobileNumber.length !== 10) {
       Alert.alert('Validation Error', 'Phone number must be exactly 10 digits');
       return;
     }
+    // --- VALIDATION END ---
     try {
       const formData = new FormData();
       formData.append('vehicleType', vehicleType);
@@ -162,6 +175,7 @@ const TransportManageScreen = () => {
     setLocation(item.location || ''); setPrice(item.price.toString());
     setImage(item.image); setAvailability(item.availability);
     setMaintenance(item.maintenance || false); setEditingId(item._id);
+    setVehicleErrors({});
     setModalVisible(true);
   };
 
@@ -177,30 +191,40 @@ const TransportManageScreen = () => {
 
   // --- DRIVER FUNCTIONS ---
   const handleDriverSubmit = async () => {
+    // ═══════════════════════════════════════════════════
+    // VALIDATION START — Driver Create / Edit Form
+    // Rule 1: All mandatory fields must be filled
     if (!driverName || !licenseNo || !idNo || !driverPhone || !description || !experience || !driverPrice) {
       Alert.alert('Validation Error', 'Please fill all required fields');
       return;
     }
+    // Rule 2: Profile photo is mandatory
     if (!driverImage) {
       Alert.alert('Validation Error', 'Driver photo is compulsory');
       return;
     }
+    // Rule 3: Phone must be exactly 10 digits
     if (driverPhone.length !== 10) {
       Alert.alert('Validation Error', 'Phone number must be exactly 10 digits');
       return;
     }
+    // Rule 4: License number must be exactly 10 digits
     if (licenseNo.length !== 10) {
       Alert.alert('Validation Error', 'License number must be exactly 10 digits');
       return;
     }
+    // Rule 5: NIC/ID must be exactly 12 digits
     if (idNo.length !== 12) {
       Alert.alert('Validation Error', 'ID number must be exactly 12 digits');
       return;
     }
+    // Rule 6: Experience must be a realistic value (1-99 years)
     if (parseInt(experience) < 1 || parseInt(experience) > 99) {
       Alert.alert('Validation Error', 'Experience must be between 1 and 99 years');
       return;
     }
+    // VALIDATION END
+    // ═══════════════════════════════════════════════════
     try {
       const formData = new FormData();
       formData.append('name', driverName);
@@ -249,6 +273,7 @@ const TransportManageScreen = () => {
     setDriverPhone(item.phone); setDriverEmail(item.email || ''); setDescription(item.description);
     setExperience(item.experience); setDriverPrice(item.price.toString());
     setDriverImage(item.image); setDriverAvailable(item.available); setEditingDriverId(item._id);
+    setDriverErrors({});
     setDriverModalVisible(true);
   };
 
@@ -262,6 +287,20 @@ const TransportManageScreen = () => {
     ]);
   };
 
+  const filteredDrivers = drivers.filter(d => {
+    const nameStr = d.name || '';
+    const licenseStr = d.licenseNo || '';
+    const matches = nameStr.toLowerCase().includes(driverSearchQuery.toLowerCase()) || 
+                    licenseStr.toLowerCase().includes(driverSearchQuery.toLowerCase());
+    
+    if (driverActiveFilter === 'Available') return matches && d.available;
+    if (driverActiveFilter === 'Senior') return matches && parseInt(d.experience || 0) >= 5;
+    if (driverActiveFilter === 'Junior') return matches && parseInt(d.experience || 0) < 5;
+    
+    return matches;
+  });
+
+
   // --- RENDER HELPERS ---
   const filteredVehicles = vehicles.filter(v => {
     const matches = v.vehicleModel?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -272,10 +311,34 @@ const TransportManageScreen = () => {
   });
 
   const getStats = () => {
+    const vTypes = { Car: 0, Van: 0, Bike: 0, SUV: 0 };
+    vehicles.forEach(v => { if (vTypes[v.vehicleType] !== undefined) vTypes[v.vehicleType]++; });
+
+    const vStatus = { Available: 0, Maintenance: 0, Booked: 0 };
+    vehicles.forEach(v => {
+      if (v.maintenance) vStatus.Maintenance++;
+      else if (v.availability) vStatus.Available++;
+      else vStatus.Booked++;
+    });
+
+    const dExp = { Junior: 0, Mid: 0, Senior: 0 };
+    drivers.forEach(d => {
+      const exp = parseInt(d.experience);
+      if (exp <= 3) dExp.Junior++;
+      else if (exp <= 8) dExp.Mid++;
+      else dExp.Senior++;
+    });
+
     return {
-      totalV: vehicles.length, availableV: vehicles.filter(v => v.availability && !v.maintenance).length,
-      inMaintenanceV: vehicles.filter(v => v.maintenance).length,
-      totalD: drivers.length, availableD: drivers.filter(d => d.available).length
+      totalV: vehicles.length, 
+      availableV: vStatus.Available,
+      inMaintenanceV: vStatus.Maintenance,
+      bookedV: vStatus.Booked,
+      vTypes,
+      vStatus,
+      totalD: drivers.length, 
+      availableD: drivers.filter(d => d.available).length,
+      dExp
     };
   };
 
@@ -283,35 +346,62 @@ const TransportManageScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#2e64e5', '#1c3d8a']} style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Transport Fleet</Text>
-          <TouchableOpacity style={styles.analyticsTrigger} onPress={() => setAnalyticsVisible(true)}>
-            <Ionicons name="stats-chart" size={18} color="#2e64e5" />
-            <Text style={styles.analyticsTriggerText}>Analytics</Text>
-          </TouchableOpacity>
-        </View>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.header}>
+        <SafeAreaView>
+          <View style={styles.headerTop}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <Ionicons name="chevron-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Fleet Management</Text>
+            <TouchableOpacity style={styles.analyticsTrigger} onPress={() => setAnalyticsVisible(true)}>
+              <Ionicons name="bar-chart" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.tabContainer}>
-          <TouchableOpacity style={[styles.tab, activeTab === 'Vehicles' && styles.activeTab]} onPress={() => setActiveTab('Vehicles')}>
-            <Text style={[styles.tabText, activeTab === 'Vehicles' && styles.activeTabText]}>Vehicles</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, activeTab === 'Drivers' && styles.activeTab]} onPress={() => setActiveTab('Drivers')}>
-            <Text style={[styles.tabText, activeTab === 'Drivers' && styles.activeTabText]}>Drivers</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.tabContainer}>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'Vehicles' && styles.activeTab]} 
+              onPress={() => setActiveTab('Vehicles')}
+            >
+              <Ionicons name="car-outline" size={18} color={activeTab === 'Vehicles' ? '#34495e' : '#fff'} />
+              <Text style={[styles.tabText, activeTab === 'Vehicles' && styles.activeTabText]}>Vehicles</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'Drivers' && styles.activeTab]} 
+              onPress={() => setActiveTab('Drivers')}
+            >
+              <Ionicons name="people-outline" size={18} color={activeTab === 'Drivers' ? '#34495e' : '#fff'} />
+              <Text style={[styles.tabText, activeTab === 'Drivers' && styles.activeTabText]}>Drivers</Text>
+            </TouchableOpacity>
+          </View>
 
-        {activeTab === 'Vehicles' ? (
-          <TouchableOpacity style={styles.addButton} onPress={() => { resetVehicleForm(); setModalVisible(true); }}>
-            <Ionicons name="bus-outline" size={20} color="#2e64e5" />
-            <Text style={styles.addButtonText}>Add New Vehicle</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.addButton} onPress={() => { resetDriverForm(); setDriverModalVisible(true); }}>
-            <Ionicons name="person-add-outline" size={20} color="#2e64e5" />
-            <Text style={styles.addButtonText}>Add New Driver</Text>
-          </TouchableOpacity>
-        )}
+          <View style={styles.actionRow}>
+            <TouchableOpacity 
+              style={styles.addButton} 
+              onPress={() => { 
+                if(activeTab === 'Vehicles') { resetVehicleForm(); setModalVisible(true); }
+                else { resetDriverForm(); setDriverModalVisible(true); }
+              }}
+            >
+              <Ionicons name="add-circle" size={20} color="#34495e" />
+              <Text style={styles.addButtonText}>Add New {activeTab === 'Vehicles' ? 'Vehicle' : 'Driver'}</Text>
+            </TouchableOpacity>
+            
+            {(activeTab === 'Vehicles' || activeTab === 'Drivers') && (
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={18} color="rgba(255,255,255,0.6)" />
+                <TextInput 
+                  style={styles.searchInput}
+                  placeholder={`Search ${activeTab.toLowerCase()}...`}
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  value={activeTab === 'Vehicles' ? searchQuery : driverSearchQuery}
+                  onChangeText={activeTab === 'Vehicles' ? setSearchQuery : setDriverSearchQuery}
+                />
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
       </LinearGradient>
 
       {/* Analytics Modal */}
@@ -320,19 +410,85 @@ const TransportManageScreen = () => {
           <View style={styles.analyticsModalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Fleet Insights</Text>
-              <TouchableOpacity onPress={() => setAnalyticsVisible(false)}><Ionicons name="close" size={28} color="#333" /></TouchableOpacity>
+              <TouchableOpacity style={styles.modalCloseIcon} onPress={() => setAnalyticsVisible(false)}>
+                <Ionicons name="close" size={24} color="#1e293b" />
+              </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.sectionHeading}>Vehicles</Text>
-              <View style={styles.miniStatsGrid}>
-                <View style={[styles.miniStatCard, { backgroundColor: '#eef2f8' }]}><Text style={styles.miniStatLabel}>Total Fleet</Text><Text style={[styles.miniStatValue, { color: '#2e64e5' }]}>{stats.totalV}</Text></View>
-                <View style={[styles.miniStatCard, { backgroundColor: '#e8f5e9' }]}><Text style={styles.miniStatLabel}>Available</Text><Text style={[styles.miniStatValue, { color: '#2ecc71' }]}>{stats.availableV}</Text></View>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.analyticsScroll}>
+              {/* Fleet Composition Section */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.sectionHeading}>Fleet Composition</Text>
+                <View style={styles.chartCard}>
+                  {Object.entries(stats.vTypes).map(([type, count]) => {
+                    const percentage = stats.totalV > 0 ? (count / stats.totalV) * 100 : 0;
+                    return (
+                      <View key={type} style={styles.chartRow}>
+                        <View style={styles.chartLabelRow}>
+                          <Text style={styles.chartLabel}>{type}</Text>
+                          <Text style={styles.chartValue}>{count}</Text>
+                        </View>
+                        <View style={styles.progressBarBg}>
+                          <LinearGradient 
+                            colors={['#34495e', '#5d6d7e']} 
+                            start={{x: 0, y: 0}} end={{x: 1, y: 0}}
+                            style={[styles.progressBarFill, { width: `${percentage}%` }]} 
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
-              <Text style={styles.sectionHeading}>Drivers</Text>
-              <View style={styles.miniStatsGrid}>
-                <View style={[styles.miniStatCard, { backgroundColor: '#fff8e1' }]}><Text style={styles.miniStatLabel}>Total Drivers</Text><Text style={[styles.miniStatValue, { color: '#f39c12' }]}>{stats.totalD}</Text></View>
-                <View style={[styles.miniStatCard, { backgroundColor: '#e8f5e9' }]}><Text style={styles.miniStatLabel}>Active</Text><Text style={[styles.miniStatValue, { color: '#2ecc71' }]}>{stats.availableD}</Text></View>
+
+              {/* Fleet Status Section */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.sectionHeading}>Operations Status</Text>
+                <View style={styles.statusGrid}>
+                  <View style={[styles.statusMiniCard, { borderLeftColor: '#2ecc71', borderLeftWidth: 4 }]}>
+                    <Text style={styles.statusMiniLabel}>Available</Text>
+                    <Text style={[styles.statusMiniValue, { color: '#2ecc71' }]}>{stats.availableV}</Text>
+                  </View>
+                  <View style={[styles.statusMiniCard, { borderLeftColor: '#f1c40f', borderLeftWidth: 4 }]}>
+                    <Text style={styles.statusMiniLabel}>Maintenance</Text>
+                    <Text style={[styles.statusMiniValue, { color: '#f1c40f' }]}>{stats.inMaintenanceV}</Text>
+                  </View>
+                  <View style={[styles.statusMiniCard, { borderLeftColor: '#e74c3c', borderLeftWidth: 4 }]}>
+                    <Text style={styles.statusMiniLabel}>In Use</Text>
+                    <Text style={[styles.statusMiniValue, { color: '#e74c3c' }]}>{stats.bookedV}</Text>
+                  </View>
+                </View>
+                <View style={styles.statusCombinedBar}>
+                  <View style={[styles.barPart, { flex: stats.availableV || 1, backgroundColor: '#2ecc71' }]} />
+                  <View style={[styles.barPart, { flex: stats.inMaintenanceV || 1, backgroundColor: '#f1c40f' }]} />
+                  <View style={[styles.barPart, { flex: stats.bookedV || 1, backgroundColor: '#e74c3c' }]} />
+                </View>
               </View>
+
+              {/* Driver Experience Section */}
+              <View style={styles.analyticsSection}>
+                <Text style={styles.sectionHeading}>Driver Expertise</Text>
+                <View style={styles.chartCard}>
+                  {[
+                    { label: 'Junior (0-3y)', count: stats.dExp.Junior, color: '#95a5a6' },
+                    { label: 'Intermediate (4-8y)', count: stats.dExp.Mid, color: '#3498db' },
+                    { label: 'Expert (9y+)', count: stats.dExp.Senior, color: '#2c3e50' }
+                  ].map((item, idx) => {
+                    const percentage = stats.totalD > 0 ? (item.count / stats.totalD) * 100 : 0;
+                    return (
+                      <View key={idx} style={styles.chartRow}>
+                        <View style={styles.chartLabelRow}>
+                          <Text style={styles.chartLabel}>{item.label}</Text>
+                          <Text style={styles.chartValue}>{item.count}</Text>
+                        </View>
+                        <View style={styles.progressBarBg}>
+                          <View style={[styles.progressBarFill, { width: `${percentage}%`, backgroundColor: item.color }]} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={{ height: 40 }} />
             </ScrollView>
           </View>
         </View>
@@ -340,13 +496,20 @@ const TransportManageScreen = () => {
 
       {/* Main Content */}
       {loading ? (
-        <ActivityIndicator size="large" color="#2e64e5" style={{ marginTop: 50 }} />
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#34495e" />
+          <Text style={styles.loaderText}>Syncing Fleet Data...</Text>
+        </View>
       ) : activeTab === 'Vehicles' ? (
         <>
           <View style={styles.filterSection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
               {['All', 'Available', 'Maintenance'].map(f => (
-                <TouchableOpacity key={f} style={[styles.filterChip, activeFilter === f && styles.activeChipBtn]} onPress={() => setActiveFilter(f)}>
+                <TouchableOpacity 
+                  key={f} 
+                  style={[styles.filterChip, activeFilter === f && styles.activeChipBtn]} 
+                  onPress={() => setActiveFilter(f)}
+                >
                   <Text style={[styles.chipText, activeFilter === f && styles.activeChipBtnText]}>{f}</Text>
                 </TouchableOpacity>
               ))}
@@ -356,30 +519,48 @@ const TransportManageScreen = () => {
             data={filteredVehicles}
             keyExtractor={item => item._id}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            contentContainerStyle={{ padding: 20, paddingTop: 0 }}
+            contentContainerStyle={styles.listContainer}
             renderItem={({ item }) => (
               <View style={styles.card}>
-                <Image source={{ uri: item.image?.startsWith('http') ? item.image : 'https://via.placeholder.com/300x150' }} style={styles.cardImage} />
+                <View style={styles.cardImageContainer}>
+                  <Image source={{ uri: getImageUrl(item.image) }} style={styles.cardImage} />
+                  <View style={[styles.statusBadge, { backgroundColor: item.maintenance ? '#fef3c7' : (item.availability ? '#dcfce7' : '#fee2e2') }]}>
+                    <View style={[styles.statusDot, { backgroundColor: item.maintenance ? '#f59e0b' : (item.availability ? '#22c55e' : '#ef4444') }]} />
+                    <Text style={[styles.statusText, { color: item.maintenance ? '#b45309' : (item.availability ? '#15803d' : '#b91c1c') }]}>
+                      {item.maintenance ? 'Service' : (item.availability ? 'Ready' : 'In Use')}
+                    </Text>
+                  </View>
+                </View>
                 <View style={styles.cardContent}>
                   <View style={styles.cardHeader}>
                     <View>
                       <Text style={styles.cardType}>{item.vehicleType}</Text>
                       <Text style={styles.cardModel}>{item.vehicleModel}</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: item.maintenance ? '#fff3e0' : (item.availability ? '#e8f5e9' : '#ffebee') }]}>
-                      <Text style={[styles.statusText, { color: item.maintenance ? '#ef6c00' : (item.availability ? '#2e7d32' : '#c62828') }]}>
-                        {item.maintenance ? 'Maintenance' : (item.availability ? 'Available' : 'Booked')}
-                      </Text>
+                    <View style={styles.priceTag}>
+                      <Text style={styles.priceValue}>LKR {item.price}</Text>
+                      <Text style={styles.priceUnit}>/day</Text>
                     </View>
                   </View>
                   <View style={styles.detailsGrid}>
-                    <View style={styles.detailItem}><Ionicons name="barcode-outline" size={14} color="#64748b" /><Text style={styles.detailText}>{item.vehicleNumber}</Text></View>
-                    <View style={styles.detailItem}><Ionicons name="call-outline" size={14} color="#64748b" /><Text style={styles.detailText}>{item.mobileNumber}</Text></View>
-                    <View style={styles.detailItem}><Ionicons name="cash-outline" size={14} color="#2e64e5" /><Text style={styles.priceText}>LKR {item.price}/day</Text></View>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="card-outline" size={14} color="#94a3b8" />
+                      <Text style={styles.detailText}>{item.vehicleNumber}</Text>
+                    </View>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="location-outline" size={14} color="#94a3b8" />
+                      <Text style={styles.detailText}>{item.location}</Text>
+                    </View>
                   </View>
                   <View style={styles.cardActions}>
-                    <TouchableOpacity onPress={() => openVehicleEdit(item)} style={[styles.actionBtn, { backgroundColor: '#eef2ff' }]}><Ionicons name="pencil" size={18} color="#2e64e5" /><Text style={[styles.actionBtnText, { color: '#2e64e5' }]}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteVehicle(item._id)} style={[styles.actionBtn, { backgroundColor: '#fef2f2' }]}><Ionicons name="trash" size={18} color="#ef4444" /><Text style={[styles.actionBtnText, { color: '#ef4444' }]}>Delete</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => openVehicleEdit(item)} style={[styles.actionBtn, styles.editBtn]}>
+                      <Ionicons name="create-outline" size={18} color="#34495e" />
+                      <Text style={styles.actionBtnText}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteVehicle(item._id)} style={[styles.actionBtn, styles.deleteBtn]}>
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      <Text style={[styles.actionBtnText, { color: '#ef4444' }]}>Remove</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -387,45 +568,77 @@ const TransportManageScreen = () => {
           />
         </>
       ) : (
-        <FlatList
-          data={drivers}
+        <>
+          <View style={styles.filterSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              {['All', 'Available', 'Senior', 'Junior'].map(f => (
+                <TouchableOpacity 
+                  key={f} 
+                  style={[styles.filterChip, driverActiveFilter === f && styles.activeChipBtn]} 
+                  onPress={() => setDriverActiveFilter(f)}
+                >
+                  <Text style={[styles.chipText, driverActiveFilter === f && styles.activeChipBtnText]}>{f}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          <FlatList
+            data={filteredDrivers}
           keyExtractor={item => item._id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={{ padding: 20 }}
+          contentContainerStyle={styles.listContainer}
           renderItem={({ item }) => (
             <View style={styles.driverCard}>
               <View style={styles.driverHeader}>
-                <View style={styles.avatar}>
+                <View style={styles.avatarWrapper}>
                   {item.image && item.image !== 'default-driver.png' ? (
-                    <Image source={{ uri: item.image }} style={styles.avatarImage} />
+                    <Image source={{ uri: getImageUrl(item.image) }} style={styles.avatarImage} />
                   ) : (
-                    <Ionicons name="person" size={24} color="#2e64e5" />
+                    <View style={styles.avatarPlaceholder}>
+                      <Ionicons name="person" size={24} color="#94a3b8" />
+                    </View>
                   )}
+                  <View style={[styles.driverStatusDot, { backgroundColor: item.available ? '#22c55e' : '#ef4444' }]} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 15 }}>
                   <Text style={styles.driverName}>{item.name}</Text>
-                  <Text style={styles.driverExp}>{item.experience} Exp</Text>
+                  <View style={styles.driverExpBadge}>
+                    <Ionicons name="ribbon-outline" size={12} color="#64748b" />
+                    <Text style={styles.driverExpText}>{item.experience} Years Exp.</Text>
+                  </View>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: item.available ? '#e8f5e9' : '#ffebee' }]}>
-                  <Text style={[styles.statusText, { color: item.available ? '#2e7d32' : '#c62828' }]}>{item.available ? 'Active' : 'Busy'}</Text>
+                <View style={styles.driverPriceTag}>
+                  <Text style={styles.driverPriceVal}>LKR {item.price}</Text>
                 </View>
               </View>
               <View style={styles.driverBody}>
-                <Text style={styles.driverDesc}>{item.description}</Text>
+                <Text style={styles.driverDesc} numberOfLines={2}>{item.description}</Text>
                 <View style={styles.driverDetailsGrid}>
-                  <View style={styles.driverDetail}><Ionicons name="id-card-outline" size={14} color="#64748b" /><Text style={styles.detailText}>{item.licenseNo}</Text></View>
-                  <View style={styles.driverDetail}><Ionicons name="call-outline" size={14} color="#64748b" /><Text style={styles.detailText}>{item.phone}</Text></View>
-                  <View style={styles.driverDetail}><Ionicons name="cash-outline" size={14} color="#2e64e5" /><Text style={styles.priceText}>LKR {item.price}/day</Text></View>
+                  <View style={styles.driverDetail}>
+                    <Ionicons name="phone-portrait-outline" size={14} color="#94a3b8" />
+                    <Text style={styles.detailText}>{item.phone}</Text>
+                  </View>
+                  <View style={styles.driverDetail}>
+                    <Ionicons name="shield-outline" size={14} color="#94a3b8" />
+                    <Text style={styles.detailText}>{item.licenseNo}</Text>
+                  </View>
                 </View>
               </View>
               <View style={styles.cardActions}>
-                <TouchableOpacity onPress={() => openDriverEdit(item)} style={[styles.actionBtn, { backgroundColor: '#eef2ff' }]}><Ionicons name="pencil" size={18} color="#2e64e5" /><Text style={[styles.actionBtnText, { color: '#2e64e5' }]}>Edit</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteDriver(item._id)} style={[styles.actionBtn, { backgroundColor: '#fef2f2' }]}><Ionicons name="trash" size={18} color="#ef4444" /><Text style={[styles.actionBtnText, { color: '#ef4444' }]}>Delete</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => openDriverEdit(item)} style={[styles.actionBtn, styles.editBtn]}>
+                  <Ionicons name="create-outline" size={18} color="#34495e" />
+                  <Text style={styles.actionBtnText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteDriver(item._id)} style={[styles.actionBtn, styles.deleteBtn]}>
+                  <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                  <Text style={[styles.actionBtnText, { color: '#ef4444' }]}>Remove</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
         />
-      )}
+      </>
+    )}
 
       {/* Vehicle Form Modal */}
       <Modal visible={modalVisible} animationType="slide">
@@ -437,7 +650,7 @@ const TransportManageScreen = () => {
             </View>
             <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
               <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                {image ? <Image source={{ uri: image }} style={styles.pickedImage} /> : (
+                {image ? <Image source={{ uri: getImageUrl(image) }} style={styles.pickedImage} /> : (
                   <View style={styles.imagePlaceholder}><Ionicons name="camera" size={40} color="#ccc" /><Text style={styles.imagePlaceholderText}>Upload Photo</Text></View>
                 )}
               </TouchableOpacity>
@@ -457,19 +670,36 @@ const TransportManageScreen = () => {
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>Model *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, vehicleErrors.model && styles.inputError]} 
                     value={vehicleModel} 
-                    onChangeText={(text) => setVehicleModel(text.replace(/[^a-zA-Z0-9\s-]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^a-zA-Z0-9\s-]/g, '');
+                      setVehicleModel(filtered);
+                      let err = '';
+                      if (!filtered) err = 'Model is required';
+                      else if (!/[a-zA-Z]/.test(filtered)) err = 'Must contain letters';
+                      setVehicleErrors(prev => ({ ...prev, model: err }));
+                    }} 
                   />
+                  {vehicleErrors.model ? <Text style={styles.errorText}>{vehicleErrors.model}</Text> : null}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Plate *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, vehicleErrors.plate && styles.inputError]} 
                     value={vehicleNumber} 
                     placeholder="wp KG-1234"
-                    onChangeText={(text) => setVehicleNumber(text.replace(/[^a-zA-Z0-9\s-]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^a-zA-Z0-9\s-]/g, '');
+                      setVehicleNumber(filtered);
+                      const plateRegex = /^[a-zA-Z]{2}\s[a-zA-Z]{2,3}-\d{4}$/i;
+                      let err = '';
+                      if (!filtered) err = 'Plate is required';
+                      else if (!plateRegex.test(filtered)) err = 'Format: wp KG-1234';
+                      setVehicleErrors(prev => ({ ...prev, plate: err }));
+                    }} 
                   />
+                  {vehicleErrors.plate ? <Text style={styles.errorText}>{vehicleErrors.plate}</Text> : null}
                 </View>
               </View>
 
@@ -477,33 +707,56 @@ const TransportManageScreen = () => {
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>Phone *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, vehicleErrors.phone && styles.inputError]} 
                     value={mobileNumber} 
-                    onChangeText={(text) => setMobileNumber(text.replace(/[^0-9]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^0-9]/g, '').slice(0, 10);
+                      setMobileNumber(filtered);
+                      let err = '';
+                      if (!filtered) err = 'Phone is required';
+                      else if (filtered.length !== 10) err = 'Must be 10 digits';
+                      setVehicleErrors(prev => ({ ...prev, phone: err }));
+                    }} 
                     keyboardType="numeric" 
                     maxLength={10} 
                   />
+                  {vehicleErrors.phone ? <Text style={styles.errorText}>{vehicleErrors.phone}</Text> : null}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Price/Day *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, vehicleErrors.price && styles.inputError]} 
                     value={price} 
                     onChangeText={(text) => {
                       const cleaned = text.replace(/[^0-9.]/g, '');
-                      if ((cleaned.match(/\./g) || []).length <= 1) setPrice(cleaned);
+                      if ((cleaned.match(/\./g) || []).length <= 1) {
+                        setPrice(cleaned);
+                        let err = '';
+                        if (!cleaned) err = 'Price is required';
+                        else if (parseFloat(cleaned) <= 0) err = 'Must be > 0';
+                        setVehicleErrors(prev => ({ ...prev, price: err }));
+                      }
                     }} 
                     keyboardType="decimal-pad" 
                   />
+                  {vehicleErrors.price ? <Text style={styles.errorText}>{vehicleErrors.price}</Text> : null}
                 </View>
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Location *</Text>
                 <TextInput 
-                  style={styles.input} 
+                  style={[styles.input, vehicleErrors.location && styles.inputError]} 
                   value={location} 
-                  onChangeText={(text) => setLocation(text.replace(/[^a-zA-Z\s]/g, ''))} 
+                  onChangeText={(text) => {
+                    const filtered = text.replace(/[^a-zA-Z\s]/g, '');
+                    setLocation(filtered);
+                    let err = '';
+                    if (!filtered) err = 'Location is required';
+                    else if (filtered.length < 3) err = 'Too short';
+                    setVehicleErrors(prev => ({ ...prev, location: err }));
+                  }} 
                 />
+                {vehicleErrors.location ? <Text style={styles.errorText}>{vehicleErrors.location}</Text> : null}
               </View>
 
               <View style={styles.switchRow}><Text style={styles.label}>Availability</Text><Switch value={availability} onValueChange={setAvailability} /></View>
@@ -526,7 +779,7 @@ const TransportManageScreen = () => {
             <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
               
               <TouchableOpacity style={styles.driverImagePicker} onPress={pickDriverImage}>
-                {driverImage ? <Image source={{ uri: driverImage }} style={styles.pickedDriverImage} /> : (
+                {driverImage ? <Image source={{ uri: getImageUrl(driverImage) }} style={styles.pickedDriverImage} /> : (
                   <View style={styles.driverImagePlaceholder}><Ionicons name="camera" size={30} color="#ccc" /><Text style={styles.imagePlaceholderText}>Upload Driver Photo</Text></View>
                 )}
               </TouchableOpacity>
@@ -535,89 +788,149 @@ const TransportManageScreen = () => {
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>Full Name *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.name && styles.inputError]} 
                     value={driverName} 
-                    onChangeText={(text) => setDriverName(text.replace(/[^a-zA-Z\s]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^a-zA-Z\s]/g, '');
+                      setDriverName(filtered);
+                      let err = '';
+                      if (!filtered) err = 'Name is required';
+                      else if (text !== filtered) err = 'Only letters allowed';
+                      setDriverErrors(prev => ({ ...prev, name: err }));
+                    }} 
                   />
+                  {driverErrors.name ? <Text style={styles.errorText}>{driverErrors.name}</Text> : null}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Phone *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.phone && styles.inputError]} 
                     value={driverPhone} 
-                    onChangeText={(text) => setDriverPhone(text.replace(/[^0-9]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^0-9]/g, '').slice(0, 10);
+                      setDriverPhone(filtered);
+                      let err = '';
+                      if (!filtered) err = 'Phone is required';
+                      else if (filtered.length !== 10) err = 'Must be 10 digits';
+                      setDriverErrors(prev => ({ ...prev, phone: err }));
+                    }} 
                     keyboardType="numeric" 
                     maxLength={10} 
                   />
+                  {driverErrors.phone ? <Text style={styles.errorText}>{driverErrors.phone}</Text> : null}
                 </View>
               </View>
               <View style={styles.row}>
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>License No *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.license && styles.inputError]} 
                     value={licenseNo} 
-                    onChangeText={(text) => setLicenseNo(text.replace(/[^0-9]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^0-9]/g, '').slice(0, 10);
+                      setLicenseNo(filtered);
+                      let err = '';
+                      if (!filtered) err = 'License is required';
+                      else if (filtered.length !== 10) err = 'Must be 10 digits';
+                      setDriverErrors(prev => ({ ...prev, license: err }));
+                    }} 
                     keyboardType="numeric" 
                     maxLength={10} 
                   />
+                  {driverErrors.license ? <Text style={styles.errorText}>{driverErrors.license}</Text> : null}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>ID No *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.id && styles.inputError]} 
                     value={idNo} 
-                    onChangeText={(text) => setIdNo(text.replace(/[^0-9]/g, ''))} 
+                    onChangeText={(text) => {
+                      const filtered = text.replace(/[^0-9]/g, '').slice(0, 12);
+                      setIdNo(filtered);
+                      let err = '';
+                      if (!filtered) err = 'ID is required';
+                      else if (filtered.length !== 12) err = 'Must be 12 digits';
+                      setDriverErrors(prev => ({ ...prev, id: err }));
+                    }} 
                     keyboardType="numeric" 
                     maxLength={12} 
                   />
+                  {driverErrors.id ? <Text style={styles.errorText}>{driverErrors.id}</Text> : null}
                 </View>
               </View>
               
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email</Text>
-                <TextInput style={styles.input} value={driverEmail} onChangeText={setDriverEmail} keyboardType="email-address" />
+                <TextInput 
+                  style={[styles.input, driverErrors.email && styles.inputError]} 
+                  value={driverEmail} 
+                  onChangeText={(text) => {
+                    setDriverEmail(text);
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    setDriverErrors(prev => ({ ...prev, email: (text.length > 0 && !emailRegex.test(text)) ? 'Invalid email format' : '' }));
+                  }} 
+                  keyboardType="email-address" 
+                />
+                {driverErrors.email ? <Text style={styles.errorText}>{driverErrors.email}</Text> : null}
               </View>
               
               <View style={styles.row}>
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                   <Text style={styles.label}>Experience *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.experience && styles.inputError]} 
                     placeholder="e.g. 5" 
                     value={experience} 
                     onChangeText={(text) => {
                       const cleaned = text.replace(/[^0-9]/g, '');
                       setExperience(cleaned);
+                      let err = '';
+                      if (!cleaned) err = 'Required';
+                      else if (parseInt(cleaned) < 1 || parseInt(cleaned) > 99) err = 'Range: 1-99';
+                      setDriverErrors(prev => ({ ...prev, experience: err }));
                     }} 
                     keyboardType="numeric" 
                     maxLength={2} 
                   />
+                  {driverErrors.experience ? <Text style={styles.errorText}>{driverErrors.experience}</Text> : null}
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.label}>Price/Day *</Text>
                   <TextInput 
-                    style={styles.input} 
+                    style={[styles.input, driverErrors.price && styles.inputError]} 
                     value={driverPrice} 
                     onChangeText={(text) => {
                       const cleaned = text.replace(/[^0-9.]/g, '');
                       if ((cleaned.match(/\./g) || []).length <= 1) {
                         setDriverPrice(cleaned);
+                        let err = '';
+                        if (!cleaned) err = 'Price is required';
+                        else if (parseFloat(cleaned) <= 0) err = 'Must be > 0';
+                        setDriverErrors(prev => ({ ...prev, price: err }));
                       }
                     }} 
                     keyboardType="decimal-pad" 
                   />
+                  {driverErrors.price ? <Text style={styles.errorText}>{driverErrors.price}</Text> : null}
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Description/Bio *</Text>
                 <TextInput 
-                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]} 
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }, driverErrors.description && styles.inputError]} 
                   multiline 
                   value={description} 
-                  onChangeText={(text) => setDescription(text.replace(/[^a-zA-Z0-9\s.,]/g, ''))} 
+                  onChangeText={(text) => {
+                    const filtered = text.replace(/[^a-zA-Z0-9\s.,]/g, '');
+                    setDescription(filtered);
+                    let err = '';
+                    if (!filtered) err = 'Description is required';
+                    else if (filtered.length < 10) err = 'Too short (min 10 chars)';
+                    setDriverErrors(prev => ({ ...prev, description: err }));
+                  }} 
                 />
+                {driverErrors.description ? <Text style={styles.errorText}>{driverErrors.description}</Text> : null}
               </View>
 
               <View style={styles.switchRow}><Text style={styles.label}>Available for Hire</Text><Switch value={driverAvailable} onValueChange={setDriverAvailable} /></View>
@@ -632,87 +945,212 @@ const TransportManageScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f4f7fe' },
-  header: { padding: 25, borderBottomLeftRadius: 35, borderBottomRightRadius: 35, marginBottom: 15, paddingBottom: 30 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-  analyticsTrigger: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, elevation: 2 },
-  analyticsTriggerText: { color: '#2e64e5', fontWeight: 'bold', marginLeft: 6, fontSize: 13 },
-  tabContainer: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 15, padding: 5, marginBottom: 20 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  activeTab: { backgroundColor: '#fff' },
-  tabText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  activeTabText: { color: '#2e64e5' },
-  addButton: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 15, flexDirection: 'row', alignItems: 'center', elevation: 5, alignSelf: 'flex-start' },
-  addButtonText: { color: '#2e64e5', fontWeight: 'bold', marginLeft: 10, fontSize: 14 },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  header: { 
+    paddingHorizontal: 25, 
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 35,
+    borderBottomLeftRadius: 40, 
+    borderBottomRightRadius: 40,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10
+  },
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 25,
+    marginTop: 10
+  },
+  backBtn: {
+    width: 45,
+    height: 45,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  headerTitle: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: 0.5 },
+  analyticsTrigger: { 
+    width: 45,
+    height: 45,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', 
+    alignItems: 'center'
+  },
+  tabContainer: { 
+    flexDirection: 'row', 
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    borderRadius: 20, 
+    padding: 6, 
+    marginBottom: 25 
+  },
+  tab: { 
+    flex: 1, 
+    paddingVertical: 12, 
+    flexDirection: 'row',
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderRadius: 15 
+  },
+  activeTab: { backgroundColor: '#fff', elevation: 5 },
+  tabText: { color: 'rgba(255,255,255,0.7)', fontWeight: '800', fontSize: 14, marginLeft: 8 },
+  activeTabText: { color: '#34495e' },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  addButton: { 
+    backgroundColor: '#fff', 
+    paddingHorizontal: 15, 
+    paddingVertical: 12, 
+    borderRadius: 15, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    elevation: 3 
+  },
+  addButtonText: { color: '#34495e', fontWeight: '900', marginLeft: 8, fontSize: 13 },
+  searchBox: {
+    flex: 1,
+    height: 45,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 15,
+    marginLeft: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600'
+  },
 
-  filterSection: { paddingHorizontal: 20, marginBottom: 10 },
-  chipScroll: { marginBottom: 5 },
-  filterChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', marginRight: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  activeChipBtn: { backgroundColor: '#2e64e5', borderColor: '#2e64e5' },
-  chipText: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  filterSection: { paddingHorizontal: 20, marginVertical: 15 },
+  chipScroll: { marginBottom: 0 },
+  filterChip: { 
+    paddingHorizontal: 20, 
+    paddingVertical: 10, 
+    borderRadius: 15, 
+    backgroundColor: '#fff', 
+    marginRight: 12, 
+    borderWidth: 1, 
+    borderColor: '#e2e8f0',
+    elevation: 2
+  },
+  activeChipBtn: { backgroundColor: '#34495e', borderColor: '#34495e' },
+  chipText: { fontSize: 13, color: '#64748b', fontWeight: '800' },
   activeChipBtnText: { color: '#fff' },
 
-  card: { backgroundColor: '#fff', borderRadius: 20, marginBottom: 20, overflow: 'hidden', elevation: 3 },
-  cardImage: { width: '100%', height: 160 },
-  cardContent: { padding: 15 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
-  cardType: { fontSize: 12, fontWeight: 'bold', color: '#2e64e5', textTransform: 'uppercase' },
-  cardModel: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 10, fontWeight: 'bold' },
-  detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 15 },
-  detailItem: { width: '50%', flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  detailText: { fontSize: 12, color: '#64748b', marginLeft: 6 },
-  priceText: { fontSize: 13, fontWeight: 'bold', color: '#2e64e5', marginLeft: 6 },
-  cardActions: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12 },
-  actionBtn: { flex: 0.48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12 },
-  actionBtnText: { fontWeight: 'bold', fontSize: 13, marginLeft: 8 },
+  listContainer: { padding: 20, paddingTop: 0, paddingBottom: 40 },
+  card: { backgroundColor: '#fff', borderRadius: 25, marginBottom: 25, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
+  cardImageContainer: { position: 'relative' },
+  cardImage: { width: '100%', height: 180 },
+  statusBadge: { 
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)'
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  statusText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  cardContent: { padding: 20 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
+  cardType: { fontSize: 11, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 },
+  cardModel: { fontSize: 20, fontWeight: '900', color: '#1e293b', marginTop: 2 },
+  priceTag: { alignItems: 'flex-end' },
+  priceValue: { fontSize: 18, fontWeight: '900', color: '#34495e' },
+  priceUnit: { fontSize: 11, color: '#94a3b8', fontWeight: '700' },
+  detailsGrid: { flexDirection: 'row', marginBottom: 20 },
+  detailItem: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  detailText: { fontSize: 13, color: '#64748b', marginLeft: 8, fontWeight: '600' },
+  cardActions: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 15 },
+  actionBtn: { flex: 0.48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 15 },
+  editBtn: { backgroundColor: '#f1f5f9' },
+  deleteBtn: { backgroundColor: '#fef2f2' },
+  actionBtnText: { fontWeight: '900', fontSize: 14, marginLeft: 8, color: '#34495e' },
 
-  driverCard: { backgroundColor: '#fff', borderRadius: 20, marginBottom: 20, padding: 20, elevation: 3 },
-  driverHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  avatarImage: { width: '100%', height: '100%' },
-  driverName: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  driverExp: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  driverBody: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 15, marginBottom: 15 },
-  driverDesc: { fontSize: 13, color: '#475569', marginBottom: 15, fontStyle: 'italic' },
-  driverDetailsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  driverDetail: { width: '50%', flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  driverCard: { backgroundColor: '#fff', borderRadius: 25, marginBottom: 25, padding: 20, elevation: 5 },
+  driverHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  avatarWrapper: { position: 'relative' },
+  avatarPlaceholder: { width: 55, height: 55, borderRadius: 20, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: 55, height: 55, borderRadius: 20 },
+  driverStatusDot: { position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: 7, borderWidth: 3, borderColor: '#fff' },
+  driverName: { fontSize: 18, fontWeight: '900', color: '#1e293b' },
+  driverExpBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  driverExpText: { fontSize: 12, color: '#64748b', marginLeft: 5, fontWeight: '700' },
+  driverPriceTag: { backgroundColor: '#f8fafc', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  driverPriceVal: { fontSize: 14, fontWeight: '900', color: '#34495e' },
+  driverBody: { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 15, marginBottom: 20 },
+  driverDesc: { fontSize: 14, color: '#64748b', marginBottom: 15, fontStyle: 'italic', lineHeight: 20 },
+  driverDetailsGrid: { flexDirection: 'row' },
+  driverDetail: { flex: 1, flexDirection: 'row', alignItems: 'center' },
 
-  analyticsModalOverlay: { flex: 1, backgroundColor: '#f4f7fe' },
-  analyticsModalContainer: { flex: 1, padding: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 15 },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#1e293b' },
-  sectionHeading: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 10, marginTop: 10 },
-  miniStatsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  miniStatCard: { flex: 0.48, padding: 20, borderRadius: 18, alignItems: 'center', elevation: 2 },
-  miniStatLabel: { fontSize: 12, color: '#64748b', fontWeight: '600', marginBottom: 5 },
-  miniStatValue: { fontSize: 24, fontWeight: 'bold' },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 50 },
+  loaderText: { marginTop: 15, color: '#64748b', fontWeight: '800' },
 
-  formContainer: { flex: 1, backgroundColor: '#fff', padding: 20 },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  formTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  analyticsModalOverlay: { flex: 1, backgroundColor: '#fff', padding: 25 },
+  analyticsModalContainer: { flex: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
+  modalCloseIcon: { padding: 5 },
+  analyticsScroll: { flex: 1 },
+  analyticsSection: { marginBottom: 30 },
+  sectionHeading: { fontSize: 18, fontWeight: '900', color: '#34495e', marginBottom: 15 },
+  
+  chartCard: { backgroundColor: '#f8fafc', borderRadius: 25, padding: 20, borderWidth: 1, borderColor: '#f1f5f9' },
+  chartRow: { marginBottom: 15 },
+  chartLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  chartLabel: { fontSize: 13, color: '#64748b', fontWeight: '800' },
+  chartValue: { fontSize: 13, color: '#34495e', fontWeight: '900' },
+  progressBarBg: { height: 8, backgroundColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 4 },
+
+  statusGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  statusMiniCard: { flex: 0.31, backgroundColor: '#f8fafc', padding: 12, borderRadius: 15, elevation: 1 },
+  statusMiniLabel: { fontSize: 10, color: '#64748b', fontWeight: '800', marginBottom: 4 },
+  statusMiniValue: { fontSize: 18, fontWeight: '900' },
+  statusCombinedBar: { height: 12, borderRadius: 6, overflow: 'hidden', flexDirection: 'row' },
+  barPart: { height: '100%' },
+
+  formContainer: { flex: 1, backgroundColor: '#fff', padding: 25 },
+  // Form styles remain similar or can be updated...
+  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  formTitle: { fontSize: 22, fontWeight: '900', color: '#1e293b' },
   formScroll: { flex: 1 },
-  imagePicker: { alignSelf: 'center', marginBottom: 25 },
-  imagePlaceholder: { width: 160, height: 100, borderRadius: 15, backgroundColor: '#f8f9fa', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#ccc' },
-  imagePlaceholderText: { fontSize: 11, color: '#999', marginTop: 5 },
-  pickedImage: { width: 200, height: 120, borderRadius: 15 },
-  driverImagePicker: { alignSelf: 'center', marginBottom: 20 },
-  driverImagePlaceholder: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#f8f9fa', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#ccc' },
-  pickedDriverImage: { width: 100, height: 100, borderRadius: 50 },
-  inputGroup: { marginBottom: 18 },
-  label: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 8 },
-  typeSelector: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  typeChip: { flex: 0.23, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fa', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  activeTypeChip: { backgroundColor: '#2e64e5', borderColor: '#2e64e5' },
-  typeChipText: { fontSize: 11, fontWeight: 'bold', color: '#64748b' },
+  imagePicker: { alignSelf: 'center', marginBottom: 25, width: Dimensions.get('window').width - 50, borderRadius: 25, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9' },
+  imagePlaceholder: { width: '100%', height: 200, borderRadius: 25, backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#e2e8f0' },
+  imagePlaceholderText: { fontSize: 13, color: '#94a3b8', fontWeight: '800', marginTop: 10 },
+  pickedImage: { width: '100%', height: 200, backgroundColor: '#f1f5f9' },
+  driverImagePicker: { alignSelf: 'center', marginBottom: 25, width: 120, height: 120, borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9' },
+  driverImagePlaceholder: { width: '100%', height: '100%', backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#e2e8f0' },
+  pickedDriverImage: { width: '100%', height: '100%', backgroundColor: '#f1f5f9' },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '800', color: '#64748b', marginBottom: 10, marginLeft: 4 },
+  typeSelector: { flexDirection: 'row', justifyContent: 'space-between' },
+  typeChip: { flex: 0.23, paddingVertical: 12, borderRadius: 15, backgroundColor: '#f8fafc', alignItems: 'center', borderWidth: 1, borderColor: '#f1f5f9' },
+  activeTypeChip: { backgroundColor: '#34495e', borderColor: '#34495e' },
+  typeChipText: { fontSize: 12, fontWeight: '800', color: '#64748b' },
   activeTypeChipText: { color: '#fff' },
-  input: { backgroundColor: '#f8f9fa', padding: 12, borderRadius: 12, fontSize: 15, color: '#333', borderWidth: 1, borderColor: '#e2e8f0' },
+  input: { backgroundColor: '#f8fafc', padding: 15, borderRadius: 15, fontSize: 15, color: '#1e293b', fontWeight: '700', borderWidth: 1, borderColor: '#f1f5f9' },
   row: { flexDirection: 'row' },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 15 },
-  saveBtn: { backgroundColor: '#2e64e5', padding: 16, borderRadius: 15, alignItems: 'center', marginTop: 15, marginBottom: 30, elevation: 4 },
-  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingVertical: 10 },
+  saveBtn: { backgroundColor: '#34495e', padding: 18, borderRadius: 20, alignItems: 'center', marginTop: 10, marginBottom: 40, elevation: 5 },
+  saveBtnText: { color: '#fff', fontWeight: '900', fontSize: 18 },
+  errorText: { color: '#ef4444', fontSize: 11, fontWeight: '800', marginTop: 4, marginLeft: 5 },
+  inputError: { borderColor: '#ef4444', borderWidth: 1.5 }
 });
 
 export default TransportManageScreen;

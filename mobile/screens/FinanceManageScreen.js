@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal, TextInput, ScrollView } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal, TextInput, ScrollView, SafeAreaView } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { reservationService, paymentService, transportBookingService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
@@ -8,7 +8,7 @@ import * as Sharing from 'expo-sharing';
 import * as MailComposer from 'expo-mail-composer';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const FinanceManageScreen = () => {
+const FinanceManageScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('hotels'); // 'hotels' or 'guides'
   const [pendingBookings, setPendingBookings] = useState([]);
   const [guideBookings, setGuideBookings] = useState([]);
@@ -298,7 +298,7 @@ const FinanceManageScreen = () => {
             body { font-family: 'Outfit', sans-serif; padding: 0; margin: 0; color: #1e293b; background: #fff; }
             .container { padding: 40px; }
             .header { 
-              background: linear-gradient(135deg, #2e64e5 0%, #7e22ce 100%);
+              background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
               padding: 40px;
               color: white;
               text-align: center;
@@ -346,7 +346,7 @@ const FinanceManageScreen = () => {
               align-items: center;
             }
             .total-label { font-size: 18px; font-weight: 700; color: #64748b; }
-            .total-value { font-size: 32px; font-weight: 800; color: #2e64e5; }
+            .total-value { font-size: 32px; font-weight: 800; color: #34495e; }
             .footer { 
               margin-top: 60px; 
               text-align: center; 
@@ -372,7 +372,7 @@ const FinanceManageScreen = () => {
         <body>
           <div class="header">
             <div class="logo">HORIZON TOURISM</div>
-            <div class="receipt-label">Booking Confirmation</div>
+            <div class="receipt-label">Finance Confirmation</div>
           </div>
           
           <div class="container">
@@ -389,25 +389,24 @@ const FinanceManageScreen = () => {
             <div class="section">
               <div class="section-title">Reservation Details</div>
               <div class="booking-card">
-                <div class="info-item"><span class="label">SERVICE TYPE</span><span class="value">${type === 'hotel' ? 'Hotel Accommodation' : 'Tour Guide Services'}</span></div>
-                <div class="info-item"><span class="label">BOOKED ITEM</span><span class="value" style="color: #7e22ce;">${data.itemName}</span></div>
+                <div class="info-item"><span class="label">SERVICE TYPE</span><span class="value">${type.toUpperCase()} BOOKING</span></div>
+                <div class="info-item"><span class="label">ITEM NAME</span><span class="value" style="color: #34495e;">${data.itemName}</span></div>
                 <div class="info-grid" style="margin-top: 15px;">
-                  <div class="info-item"><span class="label">CHECK-IN</span><span class="value">${data.checkInDate}</span></div>
-                  <div class="info-item"><span class="label">CHECK-OUT</span><span class="value">${data.checkOutDate}</span></div>
+                  <div class="info-item"><span class="label">FROM</span><span class="value">${data.checkInDate}</span></div>
+                  <div class="info-item"><span class="label">TO</span><span class="value">${data.checkOutDate}</span></div>
                 </div>
               </div>
             </div>
 
             <div class="price-section">
-              <div class="total-label">TOTAL AMOUNT</div>
+              <div class="total-label">TOTAL PAID</div>
               <div class="total-value">LKR ${Number(data.price).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
             </div>
 
             <div class="footer">
-              <p>This is a computer-generated document. No signature is required.</p>
-              <p>For support, contact us at support@horizontourism.com</p>
-              <div class="qr-placeholder">SECURE DIGITAL RECEIPT</div>
-              <p style="margin-top: 20px;">&copy; 2026 Horizon Tourism. All rights reserved.</p>
+              <p>Certified by Horizon Finance Department</p>
+              <div class="qr-placeholder">VERIFIED DIGITAL RECORD</div>
+              <p style="margin-top: 20px;">&copy; 2026 Horizon Tourism. Professional Management.</p>
             </div>
           </div>
         </body>
@@ -445,47 +444,51 @@ const FinanceManageScreen = () => {
       <View style={styles.cardHeader}>
         <View>
           <Text style={styles.guestName}>{item.fullName}</Text>
-          <Text style={styles.statusText}>{item.status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: item.status === 'Confirmed' ? '#e8f5e9' : (item.status === 'Pending' ? '#fff8e1' : '#ffebee') }]}>
+            <Text style={[styles.statusText, { color: item.status === 'Confirmed' ? '#2e7d32' : (item.status === 'Pending' ? '#f57f17' : '#c62828') }]}>{item.status}</Text>
+          </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={styles.amount}>LKR {item.totalPrice}</Text>
           {item.paymentMethod === 'Card' && (
             <View style={styles.cardBadge}>
-              <Ionicons name="card" size={12} color="#2e64e5" />
+              <Ionicons name="card" size={12} color="#34495e" />
               <Text style={styles.cardBadgeText}>CARD</Text>
             </View>
           )}
         </View>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.detail}><Ionicons name="call-outline" /> {item.phone}</Text>
-        <Text style={styles.detail}><Ionicons name="business-outline" /> {item.residenceId?.name || 'Property'}</Text>
-        <Text style={styles.detail}><Ionicons name="calendar-outline" /> {item.checkInDate.split('T')[0]} to {item.checkOutDate.split('T')[0]}</Text>
+        <View style={styles.infoRow}>
+          <Ionicons name="business" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>{item.residenceId?.name || 'Property'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="calendar" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>{item.checkInDate.split('T')[0]} - {item.checkOutDate.split('T')[0]}</Text>
+        </View>
       </View>
       
       <View style={styles.actionContainer}>
         {item.status === 'Pending' && (
           <>
-            <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleRejectHotel(item._id)}>
-              <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-              <Text style={[styles.actionBtnText, { color: '#e74c3c' }]}>Reject</Text>
+            <TouchableOpacity style={styles.rejectBtnSmall} onPress={() => handleRejectHotel(item._id)}>
+              <Ionicons name="close" size={20} color="#e74c3c" />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.confirmBtn]} onPress={() => handleConfirmHotel(item._id)}>
-              <Ionicons name="checkmark-circle-outline" size={20} color="#2ecc71" />
-              <Text style={[styles.actionBtnText, { color: '#2ecc71' }]}>Approve</Text>
+            <TouchableOpacity style={styles.approveBtn} onPress={() => handleConfirmHotel(item._id)}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.approveBtnText}>Approve</Text>
             </TouchableOpacity>
           </>
         )}
-        <TouchableOpacity style={[styles.actionBtn, styles.pdfBtn]} onPress={() => handleOpenPreview(item, 'hotel')}>
-          <Ionicons name="eye-outline" size={20} color="#2e64e5" />
-          <Text style={[styles.actionBtnText, { color: '#2e64e5' }]}>Preview</Text>
+        <TouchableOpacity style={styles.previewBtn} onPress={() => handleOpenPreview(item, 'hotel')}>
+          <Ionicons name="eye-outline" size={20} color="#34495e" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.emailDirectBtn]} onPress={() => handleDirectEmail(item, 'hotel')}>
-          <Ionicons name="mail-outline" size={20} color="#7e22ce" />
-          <Text style={[styles.actionBtnText, { color: '#7e22ce' }]}>Email</Text>
+        <TouchableOpacity style={styles.emailBtnSmall} onPress={() => handleDirectEmail(item, 'hotel')}>
+          <Ionicons name="mail-outline" size={20} color="#3498db" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDeleteHotel(item._id)}>
-          <Ionicons name="trash-outline" size={20} color="#666" />
+        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => handleDeleteHotel(item._id)}>
+          <Ionicons name="trash-outline" size={20} color="#95a5a6" />
         </TouchableOpacity>
       </View>
     </View>
@@ -496,435 +499,277 @@ const FinanceManageScreen = () => {
       <View style={styles.cardHeader}>
         <View>
           <Text style={styles.guestName}>{item.fullName}</Text>
-          <Text style={styles.statusText}>{item.status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: item.status === 'Confirmed' ? '#e8f5e9' : (item.status === 'Pending' ? '#fff8e1' : '#ffebee') }]}>
+            <Text style={[styles.statusText, { color: item.status === 'Confirmed' ? '#2e7d32' : (item.status === 'Pending' ? '#f57f17' : '#c62828') }]}>{item.status}</Text>
+          </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.amount, { color: '#9b59b6' }]}>LKR {item.totalPrice}</Text>
-          {item.paymentMethod === 'Card' && (
-            <View style={[styles.cardBadge, { backgroundColor: '#f5f3ff' }]}>
-              <Ionicons name="card" size={12} color="#7e22ce" />
-              <Text style={[styles.cardBadgeText, { color: '#7e22ce' }]}>CARD</Text>
-            </View>
-          )}
+          <Text style={[styles.amount, { color: '#8e44ad' }]}>LKR {item.totalPrice}</Text>
+          <View style={[styles.cardBadge, { backgroundColor: '#f5f3ff' }]}>
+            <Ionicons name="card" size={12} color="#8e44ad" />
+            <Text style={[styles.cardBadgeText, { color: '#8e44ad' }]}>CARD</Text>
+          </View>
         </View>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.detail}><Ionicons name="call-outline" /> {item.phone}</Text>
-        <Text style={styles.detail}><Ionicons name="calendar-outline" /> {item.checkInDate?.split('T')[0]} to {item.checkOutDate?.split('T')[0]}</Text>
+        <View style={styles.infoRow}>
+          <Ionicons name="people" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>Tour Guide Booking</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="calendar" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>{item.checkInDate?.split('T')[0]} - {item.checkOutDate?.split('T')[0]}</Text>
+        </View>
       </View>
 
       <View style={styles.actionContainer}>
         {item.status === 'Pending' && (
           <>
-            <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleRejectGuide(item._id)}>
-              <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-              <Text style={[styles.actionBtnText, { color: '#e74c3c' }]}>Reject</Text>
+            <TouchableOpacity style={styles.rejectBtnSmall} onPress={() => handleRejectGuide(item._id)}>
+              <Ionicons name="close" size={20} color="#e74c3c" />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.confirmBtn]} onPress={() => handleConfirmGuide(item._id)}>
-              <Ionicons name="checkmark-circle-outline" size={20} color="#2ecc71" />
-              <Text style={[styles.actionBtnText, { color: '#2ecc71' }]}>Approve</Text>
+            <TouchableOpacity style={[styles.approveBtn, { backgroundColor: '#8e44ad' }]} onPress={() => handleConfirmGuide(item._id)}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.approveBtnText}>Approve</Text>
             </TouchableOpacity>
           </>
         )}
-        <TouchableOpacity style={[styles.actionBtn, styles.pdfBtn]} onPress={() => handleOpenPreview(item, 'guide')}>
-          <Ionicons name="eye-outline" size={20} color="#2e64e5" />
-          <Text style={[styles.actionBtnText, { color: '#2e64e5' }]}>Preview</Text>
+        <TouchableOpacity style={styles.previewBtn} onPress={() => handleOpenPreview(item, 'guide')}>
+          <Ionicons name="eye-outline" size={20} color="#34495e" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.emailDirectBtn]} onPress={() => handleDirectEmail(item, 'guide')}>
-          <Ionicons name="mail-outline" size={20} color="#7e22ce" />
-          <Text style={[styles.actionBtnText, { color: '#7e22ce' }]}>Email</Text>
+        <TouchableOpacity style={styles.emailBtnSmall} onPress={() => handleDirectEmail(item, 'guide')}>
+          <Ionicons name="mail-outline" size={20} color="#3498db" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDeleteGuide(item._id)}>
-          <Ionicons name="trash-outline" size={20} color="#666" />
+        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => handleDeleteGuide(item._id)}>
+          <Ionicons name="trash-outline" size={20} color="#95a5a6" />
         </TouchableOpacity>
       </View>
     </View>
   );
+
   const renderTransportBooking = ({ item }) => (
     <View style={styles.bookingCard}>
       <View style={styles.cardHeader}>
         <View>
           <Text style={styles.guestName}>{item.fullName}</Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: item.status === 'Approved' ? '#2ecc71' : (item.status === 'Pending' ? '#f1c40f' : '#e74c3c') }]} />
-            <Text style={styles.statusText}>{item.status}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: item.status === 'Approved' ? '#e8f5e9' : (item.status === 'Pending' ? '#fff8e1' : '#ffebee') }]}>
+            <Text style={[styles.statusText, { color: item.status === 'Approved' ? '#2e7d32' : (item.status === 'Pending' ? '#f57f17' : '#c62828') }]}>{item.status}</Text>
           </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.amount, { color: '#2e64e5' }]}>LKR {item.totalPrice}</Text>
-          <View style={styles.cardBadge}>
-            <Ionicons name="card" size={12} color="#2e64e5" />
-            <Text style={styles.cardBadgeText}>CARD</Text>
+          <Text style={[styles.amount, { color: '#2980b9' }]}>LKR {item.totalPrice}</Text>
+          <View style={[styles.cardBadge, { backgroundColor: '#ebf5ff' }]}>
+            <Ionicons name="card" size={12} color="#2980b9" />
+            <Text style={[styles.cardBadgeText, { color: '#2980b9' }]}>CARD</Text>
           </View>
         </View>
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.detail}><Ionicons name="car-outline" /> {item.vehicle?.vehicleModel} ({item.vehicle?.vehicleNumber})</Text>
-        {item.driver && <Text style={styles.detail}><Ionicons name="person-outline" /> Driver: {item.driver.name}</Text>}
-        <Text style={styles.detail}><Ionicons name="calendar-outline" /> {new Date(item.checkInDate).toLocaleDateString()} to {new Date(item.checkOutDate).toLocaleDateString()}</Text>
+        <View style={styles.infoRow}>
+          <Ionicons name="car" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>{item.vehicle?.vehicleModel} ({item.vehicle?.vehicleNumber})</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="calendar" size={14} color="#95a5a6" />
+          <Text style={styles.detail}>{new Date(item.checkInDate).toLocaleDateString()} - {new Date(item.checkOutDate).toLocaleDateString()}</Text>
+        </View>
       </View>
 
       <View style={styles.actionContainer}>
         {item.status === 'Pending' && (
           <>
-            <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn]} onPress={() => handleRejectTransport(item._id)}>
-              <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
-              <Text style={[styles.actionBtnText, { color: '#e74c3c' }]}>Reject</Text>
+            <TouchableOpacity style={styles.rejectBtnSmall} onPress={() => handleRejectTransport(item._id)}>
+              <Ionicons name="close" size={20} color="#e74c3c" />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.confirmBtn]} onPress={() => handleConfirmTransport(item._id)}>
-              <Ionicons name="checkmark-circle-outline" size={20} color="#2ecc71" />
-              <Text style={[styles.actionBtnText, { color: '#2ecc71' }]}>Approve</Text>
+            <TouchableOpacity style={[styles.approveBtn, { backgroundColor: '#2980b9' }]} onPress={() => handleConfirmTransport(item._id)}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={styles.approveBtnText}>Approve</Text>
             </TouchableOpacity>
           </>
         )}
-        <TouchableOpacity style={[styles.actionBtn, styles.pdfBtn]} onPress={() => handleOpenPreview(item, 'transport')}>
-          <Ionicons name="eye-outline" size={20} color="#2e64e5" />
-          <Text style={[styles.actionBtnText, { color: '#2e64e5' }]}>Preview</Text>
+        <TouchableOpacity style={styles.previewBtn} onPress={() => handleOpenPreview(item, 'transport')}>
+          <Ionicons name="eye-outline" size={20} color="#34495e" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDeleteTransport(item._id)}>
-          <Ionicons name="trash-outline" size={20} color="#666" />
+        <TouchableOpacity style={styles.deleteBtnSmall} onPress={() => handleDeleteTransport(item._id)}>
+          <Ionicons name="trash-outline" size={20} color="#95a5a6" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  if (loading) return <ActivityIndicator size="large" color="#2e64e5" style={styles.loader} />;
+  if (loading) return (
+    <View style={styles.loaderContainer}>
+      <ActivityIndicator size="large" color="#34495e" />
+      <Text style={styles.loaderText}>Syncing financial records...</Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View /> 
-        <TouchableOpacity 
-          style={styles.analyticsTrigger} 
-          onPress={() => setAnalyticsVisible(true)}
-        >
-          <Ionicons name="stats-chart" size={20} color="#2e64e5" />
-          <Text style={styles.analyticsTriggerText}>Analytics</Text>
-        </TouchableOpacity>
-      </View>
+      <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.headerMain}>
+        <SafeAreaView>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Finance Dashboard</Text>
+            <TouchableOpacity 
+              style={styles.analyticsTrigger} 
+              onPress={() => setAnalyticsVisible(true)}
+            >
+              <Ionicons name="stats-chart" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.revenueOverview}>
+            <Text style={styles.revenueLabel}>TOTAL CONFIRMED REVENUE</Text>
+            <Text style={styles.revenueValue}>LKR {calculateTotalRevenue().toLocaleString()}</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#64748b" />
-        <TextInput 
-          style={styles.searchInput} 
-          placeholder={`Search ${activeTab}...`}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+      <View style={styles.mainContent}>
+        <View style={styles.searchSection}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#95a5a6" />
+            <TextInput 
+              style={styles.searchInput} 
+              placeholder="Search by guest or email..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#95a5a6"
+            />
+          </View>
+        </View>
+
+        <View style={styles.tabSection}>
+          <View style={styles.tabBar}>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'hotels' && styles.activeTab]} 
+              onPress={() => setActiveTab('hotels')}
+            >
+              <Text style={[styles.tabText, activeTab === 'hotels' && styles.activeTabText]}>Hotels</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'guides' && styles.activeTab]} 
+              onPress={() => setActiveTab('guides')}
+            >
+              <Text style={[styles.tabText, activeTab === 'guides' && styles.activeTabText]}>Guides</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'transport' && styles.activeTab]} 
+              onPress={() => setActiveTab('transport')}
+            >
+              <Text style={[styles.tabText, activeTab === 'transport' && styles.activeTabText]}>Transport</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.statusFilterSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {['All', 'Pending', 'Confirmed', 'Rejected'].map(status => (
+              <TouchableOpacity 
+                key={status} 
+                style={[styles.statusChip, activeStatus === status && styles.activeStatusChip]}
+                onPress={() => setActiveStatus(status)}
+              >
+                <Text style={[styles.statusChipText, activeStatus === status && styles.activeStatusChipText]}>
+                  {status === 'Confirmed' ? 'Confirmed/Approved' : status}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <FlatList
+          data={activeTab === 'hotels' ? filteredHotels : (activeTab === 'guides' ? filteredGuides : filteredTransport)}
+          keyExtractor={item => item._id}
+          renderItem={activeTab === 'hotels' ? renderHotelBooking : (activeTab === 'guides' ? renderGuideBooking : renderTransportBooking)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>No bookings found for {activeTab}</Text></View>}
+          contentContainerStyle={styles.listContent}
         />
       </View>
-
-      {/* Status Filter Chips */}
-      <View style={styles.statusFilterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['All', 'Pending', 'Confirmed', 'Rejected'].map(status => (
-            <TouchableOpacity 
-              key={status} 
-              style={[styles.statusChip, activeStatus === status && styles.activeStatusChip]}
-              onPress={() => setActiveStatus(status)}
-            >
-              <Text style={[styles.statusChipText, activeStatus === status && styles.activeStatusChipText]}>
-                {status === 'Confirmed' ? 'Confirmed/Approved' : status}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Analytics Modal */}
       <Modal visible={analyticsVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { height: '85%' }]}>
+        <View style={styles.modalOverlayFull}>
+          <SafeAreaView style={styles.modalContentFull}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Financial Insights</Text>
               <TouchableOpacity onPress={() => setAnalyticsVisible(false)}>
-                <Ionicons name="close" size={28} color="#333" />
+                <Ionicons name="close-circle" size={32} color="#34495e" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
-              <View style={styles.modalSummaryRow}>
-                <LinearGradient colors={['#2ecc71', '#27ae60']} style={styles.modalSummaryCardFull}>
-                  <View style={styles.revenueIconBg}>
-                    <Ionicons name="wallet" size={24} color="#fff" />
-                  </View>
-                  <View>
-                    <Text style={styles.modalSummaryLabel}>Total Confirmed Revenue</Text>
-                    <Text style={styles.modalSummaryValueLarge}>LKR {calculateTotalRevenue().toLocaleString()}</Text>
-                  </View>
-                </LinearGradient>
-              </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+               <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.analyticsHeroCard}>
+                  <Text style={styles.heroLabel}>Total Revenue</Text>
+                  <Text style={styles.heroValue}>LKR {calculateTotalRevenue().toLocaleString()}</Text>
+                  <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>LIVE SYNCED</Text></View>
+               </LinearGradient>
 
-              <LinearGradient colors={['#2e64e5', '#1c3d8a']} style={[styles.analyticsCardGradient, { marginTop: 25 }]}>
-                <View style={styles.analyticsHeader}>
-                  <Ionicons name="pie-chart" size={20} color="#fff" />
-                  <Text style={[styles.analyticsTitle, { color: '#fff' }]}>Booking Metrics</Text>
-                </View>
-                
-                <View style={styles.chartContainer}>
-                  {/* Booking Distribution Bar */}
-                  <View style={styles.chartRow}>
-                    <View style={styles.chartLabels}>
-                      <Text style={[styles.chartLabel, { color: 'rgba(255,255,255,0.8)' }]}>Service Type Distribution</Text>
-                      <Text style={[styles.chartValue, { color: '#fff' }]}>{pendingBookings.length}H / {guideBookings.length}G / {transportBookings.length}T</Text>
-                    </View>
-                    <View style={[styles.progressBarBg, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                      <View style={[styles.progressBarFill, { width: `${(pendingBookings.length / (pendingBookings.length + guideBookings.length + transportBookings.length || 1)) * 100}%`, backgroundColor: '#fff' }]} />
-                      <View style={[styles.progressBarFill, { width: `${(guideBookings.length / (pendingBookings.length + guideBookings.length + transportBookings.length || 1)) * 100}%`, backgroundColor: '#f39c12' }]} />
-                      <View style={[styles.progressBarFill, { width: `${(transportBookings.length / (pendingBookings.length + guideBookings.length + transportBookings.length || 1)) * 100}%`, backgroundColor: '#00d2ff' }]} />
-                    </View>
+               <View style={styles.miniStatsGrid}>
+                  <View style={styles.miniStatCard}>
+                    <Text style={styles.miniStatValue}>{pendingBookings.length}</Text>
+                    <Text style={styles.miniStatLabel}>HOTELS</Text>
                   </View>
-
-                  {/* Status Breakdown Bar */}
-                  <View style={[styles.chartRow, { marginTop: 20 }]}>
-                    <View style={styles.chartLabels}>
-                      <Text style={[styles.chartLabel, { color: 'rgba(255,255,255,0.8)' }]}>Global Approval Status</Text>
-                      <Text style={[styles.chartValue, { color: '#fff' }]}>{([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Confirmed' || b.status === 'Approved').length)} Approved</Text>
-                    </View>
-                    <View style={[styles.progressBarBg, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                      <View style={[styles.progressBarFill, { width: `${([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Confirmed' || b.status === 'Approved').length / ([...pendingBookings, ...guideBookings, ...transportBookings].length || 1)) * 100}%`, backgroundColor: '#2ecc71' }]} />
-                      <View style={[styles.progressBarFill, { width: `${([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Pending').length / ([...pendingBookings, ...guideBookings, ...transportBookings].length || 1)) * 100}%`, backgroundColor: '#ff9f43' }]} />
-                      <View style={[styles.progressBarFill, { width: `${([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Rejected').length / ([...pendingBookings, ...guideBookings, ...transportBookings].length || 1)) * 100}%`, backgroundColor: '#e74c3c' }]} />
-                    </View>
+                  <View style={styles.miniStatCard}>
+                    <Text style={styles.miniStatValue}>{guideBookings.length}</Text>
+                    <Text style={styles.miniStatLabel}>GUIDES</Text>
                   </View>
-
-                  {/* Detailed Counts */}
-                  <View style={[styles.statusGrid, { marginTop: 25 }]}>
-                    <View style={[styles.statusMiniStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                      <Text style={styles.statusMiniValueWhite}>{[...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Confirmed' || b.status === 'Approved').length}</Text>
-                      <Text style={styles.statusMiniLabelWhite}>Confirmed</Text>
-                    </View>
-                    <View style={[styles.statusMiniStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                      <Text style={styles.statusMiniValueWhite}>{[...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Pending').length}</Text>
-                      <Text style={styles.statusMiniLabelWhite}>Pending</Text>
-                    </View>
-                    <View style={[styles.statusMiniStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                      <Text style={styles.statusMiniValueWhite}>{[...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Rejected').length}</Text>
-                      <Text style={styles.statusMiniLabelWhite}>Rejected</Text>
-                    </View>
+                  <View style={styles.miniStatCard}>
+                    <Text style={styles.miniStatValue}>{transportBookings.length}</Text>
+                    <Text style={styles.miniStatLabel}>CARS</Text>
                   </View>
-                </View>
-              </LinearGradient>
+               </View>
 
-              {/* Transport Insights Card */}
-              <View style={[styles.analyticsCard, { marginTop: 20, backgroundColor: '#fff' }]}>
-                <View style={styles.analyticsHeader}>
-                  <Ionicons name="car-sport" size={22} color="#00d2ff" />
-                  <Text style={styles.analyticsTitle}>Transport Insights</Text>
-                </View>
-                
-                <View style={styles.chartContainer}>
-                  <View style={styles.chartRow}>
-                    <View style={styles.chartLabels}>
-                      <Text style={styles.chartLabel}>Driver Utilization</Text>
-                      <Text style={styles.chartValue}>
-                        {transportBookings.filter(b => b.driver).length} / {transportBookings.length} Bookings
-                      </Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: `${(transportBookings.filter(b => b.driver).length / (transportBookings.length || 1)) * 100}%`, backgroundColor: '#00d2ff' }]} />
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-                      <Text style={{ fontSize: 11, color: '#64748b' }}>With Driver: {transportBookings.filter(b => b.driver).length}</Text>
-                      <Text style={{ fontSize: 11, color: '#64748b' }}>Self Drive: {transportBookings.length - transportBookings.filter(b => b.driver).length}</Text>
-                    </View>
+               <View style={styles.chartCard}>
+                  <Text style={styles.chartTitle}>Approval Metrics</Text>
+                  <View style={styles.chartBarContainer}>
+                    <View style={[styles.chartBar, { flex: ([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Confirmed' || b.status === 'Approved').length || 1), backgroundColor: '#2ecc71' }]} />
+                    <View style={[styles.chartBar, { flex: ([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Pending').length || 1), backgroundColor: '#f39c12' }]} />
+                    <View style={[styles.chartBar, { flex: ([...pendingBookings, ...guideBookings, ...transportBookings].filter(b => b.status === 'Rejected').length || 1), backgroundColor: '#e74c3c' }]} />
                   </View>
-
-                  <View style={[styles.statusGrid, { marginTop: 15 }]}>
-                    <View style={[styles.statusMiniCard, { borderLeftColor: '#00d2ff', marginRight: 10 }]}>
-                      <Text style={styles.statusMiniLabel}>Transport Rev</Text>
-                      <Text style={[styles.statusMiniValue, { color: '#00d2ff' }]}>
-                        LKR {transportBookings.reduce((sum, b) => sum + (b.status === 'Approved' ? b.totalPrice : 0), 0).toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={[styles.statusMiniCard, { borderLeftColor: '#f39c12' }]}>
-                      <Text style={styles.statusMiniLabel}>Driver Rev</Text>
-                      <Text style={[styles.statusMiniValue, { color: '#f39c12' }]}>
-                        LKR {transportBookings.reduce((sum, b) => {
-                          if (b.status === 'Approved' && b.driver) {
-                            // Assuming total price includes driver price, we might need a way to track just driver rev
-                            // For now, showing count of driver bookings as a proxy or simple percentage if needed
-                            return sum + (b.totalPrice * 0.2); // Just as an example proxy
-                          }
-                          return sum;
-                        }, 0).toLocaleString()}
-                      </Text>
-                    </View>
+                  <View style={styles.chartLegend}>
+                    <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#2ecc71' }]} /><Text style={styles.legendText}>Confirmed</Text></View>
+                    <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#f39c12' }]} /><Text style={styles.legendText}>Pending</Text></View>
                   </View>
-                </View>
-              </View>
-
-              <View style={{ height: 40 }} />
+               </View>
             </ScrollView>
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'hotels' && styles.activeTab]} 
-          onPress={() => setActiveTab('hotels')}
-        >
-          <Text style={[styles.tabText, activeTab === 'hotels' && styles.activeTabText]}>Hotels</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'guides' && styles.activeTab]} 
-          onPress={() => setActiveTab('guides')}
-        >
-          <Text style={[styles.tabText, activeTab === 'guides' && styles.activeTabText]}>Tour Guides</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'transport' && styles.activeTab]} 
-          onPress={() => setActiveTab('transport')}
-        >
-          <Text style={[styles.tabText, activeTab === 'transport' && styles.activeTabText]}>Transport</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={activeTab === 'hotels' ? filteredHotels : (activeTab === 'guides' ? filteredGuides : filteredTransport)}
-        keyExtractor={item => item._id}
-        renderItem={activeTab === 'hotels' ? renderHotelBooking : (activeTab === 'guides' ? renderGuideBooking : renderTransportBooking)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={<Text style={styles.emptyText}>No {activeTab} bookings to display.</Text>}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
-
-      <Modal
-        visible={previewModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setPreviewModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.previewModalContainer}>
+      <Modal visible={previewModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlayFull}>
+          <SafeAreaView style={styles.modalContentFull}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Booking Details Preview</Text>
+              <Text style={styles.modalTitle}>Receipt Preview</Text>
               <TouchableOpacity onPress={() => setPreviewModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
+                <Ionicons name="close-circle" size={32} color="#34495e" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalScroll}>
-              <View style={styles.editSection}>
-
-                {/* Status Badge */}
-                <View style={{ alignItems: 'center', marginBottom: 18 }}>
-                  <View style={[{
-                    paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20,
-                    backgroundColor:
-                      editData.status === 'Approved' || editData.status === 'Confirmed' ? '#dcfce7' :
-                      editData.status === 'Rejected' ? '#fee2e2' : '#fef9c3'
-                  }]}>
-                    <Text style={{
-                      fontWeight: 'bold', fontSize: 14,
-                      color:
-                        editData.status === 'Approved' || editData.status === 'Confirmed' ? '#16a34a' :
-                        editData.status === 'Rejected' ? '#dc2626' : '#ca8a04'
-                    }}>{editData.status?.toUpperCase()}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+               <View style={styles.previewCard}>
+                  <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.previewHeader}>
+                    <Text style={styles.previewLogo}>HORIZON</Text>
+                    <Text style={styles.previewSub}>OFFICIAL RECEIPT</Text>
+                  </LinearGradient>
+                  <View style={styles.previewBody}>
+                    <View style={styles.previewRow}><Text style={styles.pLabel}>GUEST</Text><Text style={styles.pValue}>{editData.fullName}</Text></View>
+                    <View style={styles.previewRow}><Text style={styles.pLabel}>SERVICE</Text><Text style={styles.pValue}>{editData.itemName}</Text></View>
+                    <View style={styles.previewRow}><Text style={styles.pLabel}>DATE</Text><Text style={styles.pValue}>{editData.checkInDate}</Text></View>
+                    <View style={styles.previewDivider} />
+                    <View style={styles.previewRow}><Text style={styles.pLabelTotal}>TOTAL AMOUNT</Text><Text style={styles.pValueTotal}>LKR {Number(editData.price).toLocaleString()}</Text></View>
                   </View>
-                </View>
+               </View>
 
-                <View style={styles.viewGroup}>
-                  <Text style={styles.inputLabel}>Full Name</Text>
-                  <Text style={styles.viewValue}>{editData.fullName || '—'}</Text>
-                </View>
-
-                <View style={styles.viewGroup}>
-                  <Text style={styles.inputLabel}>Email Address</Text>
-                  <Text style={styles.viewValue}>{editData.email || '—'}</Text>
-                </View>
-
-                <View style={styles.viewGroup}>
-                  <Text style={styles.inputLabel}>Phone Number</Text>
-                  <Text style={styles.viewValue}>{editData.phone || '—'}</Text>
-                </View>
-
-                {editData.idNumber ? (
-                  <View style={styles.viewGroup}>
-                    <Text style={styles.inputLabel}>ID Number</Text>
-                    <Text style={styles.viewValue}>{editData.idNumber}</Text>
-                  </View>
-                ) : null}
-
-                {bookingType === 'transport' && (
-                  <>
-                    <View style={styles.viewGroup}>
-                      <Text style={styles.inputLabel}>Vehicle</Text>
-                      <Text style={styles.viewValue}>{editData.itemName || '—'}</Text>
-                    </View>
-
-                    {editData.driver ? (
-                      <View style={styles.viewGroup}>
-                        <Text style={styles.inputLabel}>Assigned Driver</Text>
-                        <Text style={styles.viewValue}>{editData.driver}</Text>
-                      </View>
-                    ) : null}
-                  </>
-                )}
-
-                {bookingType !== 'transport' && (
-                  <View style={styles.viewGroup}>
-                    <Text style={styles.inputLabel}>
-                      {bookingType === 'hotel' ? 'Hotel' : 'Tour Guide'}
-                    </Text>
-                    <Text style={styles.viewValue}>{editData.itemName || '—'}</Text>
-                  </View>
-                )}
-
-                <View style={styles.viewGroup}>
-                  <Text style={styles.inputLabel}>Payment Method</Text>
-                  <View style={[styles.viewValue, { flexDirection: 'row', alignItems: 'center' }]}>
-                    <Ionicons name="card-outline" size={20} color="#2e64e5" style={{ marginRight: 10 }} />
-                    <Text style={{ fontSize: 16, color: '#2e64e5', fontWeight: 'bold' }}>CREDIT CARD</Text>
-                  </View>
-                </View>
-
-                <View style={styles.viewGroup}>
-                  <Text style={styles.inputLabel}>Total Price (LKR)</Text>
-                  <Text style={[styles.viewValue, { color: '#2e64e5', fontWeight: 'bold', fontSize: 20 }]}>LKR {Number(editData.price).toLocaleString()}</Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 0.48 }}>
-                    <Text style={styles.inputLabel}>Check-in</Text>
-                    <Text style={styles.viewValue}>{editData.checkInDate || '—'}</Text>
-                  </View>
-                  <View style={{ flex: 0.48 }}>
-                    <Text style={styles.inputLabel}>Check-out</Text>
-                    <Text style={styles.viewValue}>{editData.checkOutDate || '—'}</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.previewCard}>
-                <LinearGradient
-                  colors={bookingType === 'transport' ? ['#0f2027', '#2e64e5'] : ['#2e64e5', '#7e22ce']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.previewHeader}
-                >
-                  <Text style={styles.previewLogo}>HORIZON</Text>
-                  <Text style={styles.previewType}>{bookingType.toUpperCase()} RECEIPT</Text>
-                </LinearGradient>
-                <View style={styles.previewContent}>
-                  <Text style={styles.previewName}>{editData.fullName}</Text>
-                  <Text style={styles.previewItem}>{editData.itemName}</Text>
-                  <Text style={styles.previewPrice}>LKR {Number(editData.price).toLocaleString()}</Text>
-                </View>
-              </View>
+               <TouchableOpacity style={styles.shareBtnLarge} onPress={() => generatePDF(editData, bookingType)}>
+                  <Ionicons name="share-outline" size={24} color="#fff" />
+                  <Text style={styles.shareBtnText}>Share as PDF Document</Text>
+               </TouchableOpacity>
             </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={[styles.footerBtn, styles.shareBtn, { flex: 1 }]} 
-                onPress={() => generatePDF(editData, bookingType)}
-              >
-                <Ionicons name="share-outline" size={20} color="#fff" />
-                <Text style={styles.footerBtnText}>Share PDF</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
     </View>
@@ -932,98 +777,497 @@ const FinanceManageScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 15, backgroundColor: '#f4f7fe' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  dashboardTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  analyticsTrigger: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 12, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  analyticsTriggerText: { color: '#2e64e5', fontWeight: 'bold', marginLeft: 8, fontSize: 14 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#f4f7fe' 
+  },
+  loaderContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#f4f7fe'
+  },
+  loaderText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: '#34495e',
+    fontWeight: '600'
+  },
+  headerMain: { 
+    padding: 25, 
+    borderBottomLeftRadius: 35, 
+    borderBottomRightRadius: 35, 
+    paddingBottom: 35,
+    paddingTop: 40,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  headerTopRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 20 
+  },
+  backButton: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20, 
+    backgroundColor: 'rgba(255,255,255,0.15)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  headerTitle: { 
+    flex: 1, 
+    textAlign: 'center', 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#fff' 
+  },
+  analyticsTrigger: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20, 
+    backgroundColor: 'rgba(255,255,255,0.15)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  revenueOverview: { 
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    borderRadius: 20, 
+    padding: 15, 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.15)' 
+  },
+  revenueLabel: { 
+    color: 'rgba(255,255,255,0.7)', 
+    fontSize: 10, 
+    fontWeight: '800', 
+    letterSpacing: 1,
+    marginBottom: 5 
+  },
+  revenueValue: { 
+    color: '#fff', 
+    fontSize: 24, 
+    fontWeight: '900' 
+  },
+  mainContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    marginTop: -20
+  },
+  searchSection: {
+    marginBottom: 15
+  },
+  searchContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#fff', 
+    borderRadius: 18, 
+    paddingHorizontal: 15, 
+    height: 50, 
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5
+  },
+  searchInput: { 
+    flex: 1, 
+    marginLeft: 10, 
+    fontSize: 15, 
+    color: '#2c3e50' 
+  },
+  tabSection: {
+    marginBottom: 15
+  },
+  tabBar: { 
+    flexDirection: 'row', 
+    backgroundColor: '#fff', 
+    borderRadius: 15, 
+    padding: 5, 
+    elevation: 2 
+  },
+  tab: { 
+    flex: 1, 
+    paddingVertical: 10, 
+    alignItems: 'center', 
+    borderRadius: 12 
+  },
+  activeTab: { 
+    backgroundColor: '#34495e' 
+  },
+  tabText: { 
+    fontSize: 13, 
+    fontWeight: '700', 
+    color: '#95a5a6' 
+  },
+  activeTabText: { 
+    color: '#fff' 
+  },
+  statusFilterSection: {
+    marginBottom: 15
+  },
+  statusChip: { 
+    paddingHorizontal: 15, 
+    paddingVertical: 8, 
+    borderRadius: 20, 
+    backgroundColor: '#fff', 
+    marginRight: 8, 
+    borderWidth: 1, 
+    borderColor: '#eee' 
+  },
+  activeStatusChip: { 
+    backgroundColor: '#34495e', 
+    borderColor: '#34495e' 
+  },
+  statusChipText: { 
+    fontSize: 12, 
+    fontWeight: 'bold', 
+    color: '#95a5a6' 
+  },
+  activeStatusChipText: { 
+    color: '#fff' 
+  },
+  listContent: {
+    paddingBottom: 30
+  },
+  bookingCard: { 
+    backgroundColor: '#fff', 
+    borderRadius: 22, 
+    padding: 18, 
+    marginBottom: 15, 
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8
+  },
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 15 
+  },
+  guestName: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    color: '#2c3e50' 
+  },
+  statusBadge: { 
+    marginTop: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start'
+  },
+  statusText: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    textTransform: 'uppercase' 
+  },
+  amount: { 
+    fontSize: 18, 
+    fontWeight: '900', 
+    color: '#34495e' 
+  },
+  cardBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#f0f4ff', 
+    paddingHorizontal: 8, 
+    paddingVertical: 3, 
+    borderRadius: 6, 
+    marginTop: 5 
+  },
+  cardBadgeText: { 
+    fontSize: 10, 
+    fontWeight: 'bold', 
+    color: '#34495e', 
+    marginLeft: 4 
+  },
+  cardBody: { 
+    marginBottom: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  infoRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 8 
+  },
+  detail: { 
+    fontSize: 13, 
+    color: '#7f8c8d', 
+    marginLeft: 8, 
+    fontWeight: '500' 
+  },
+  actionContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  approveBtn: { 
+    flex: 1, 
+    backgroundColor: '#2ecc71', 
+    flexDirection: 'row', 
+    paddingVertical: 10, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  approveBtnText: { 
+    color: '#fff', 
+    fontWeight: 'bold', 
+    marginLeft: 6,
+    fontSize: 13
+  },
+  previewBtn: { 
+    flex: 1, 
+    backgroundColor: '#f0f4ff', 
+    flexDirection: 'row', 
+    paddingVertical: 10, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  previewBtnSmall: {
+    width: 45,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#f0f4ff',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  rejectBtnSmall: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 12, 
+    backgroundColor: '#fdeae9', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  emailBtnSmall: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 12, 
+    backgroundColor: '#ebf5ff', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  deleteBtnSmall: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 12, 
+    backgroundColor: '#f8f9fa', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center'
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '600'
+  },
 
-  modalSummaryRow: { marginTop: 10 },
-  modalSummaryCardFull: { width: '100%', padding: 20, borderRadius: 20, elevation: 5, flexDirection: 'row', alignItems: 'center' },
-  revenueIconBg: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 12, borderRadius: 15, marginRight: 15 },
-  modalSummaryLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '600' },
-  modalSummaryValueLarge: { color: '#fff', fontSize: 26, fontWeight: 'bold', marginTop: 2 },
-  // Analytics Styles
-  analyticsSection: { marginBottom: 20 },
-  analyticsCard: { padding: 18, borderRadius: 24, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, borderWidth: 1, borderColor: '#eff6ff' },
-  analyticsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  analyticsTitle: { fontSize: 16, fontWeight: 'bold', color: '#1e293b', marginLeft: 10 },
-  chartContainer: { width: '100%' },
-  chartRow: { marginBottom: 20 },
-  chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  chartLabel: { fontSize: 13, color: '#64748b', fontWeight: '500' },
-  chartValue: { fontSize: 13, color: '#1e293b', fontWeight: '700' },
-  progressBarBg: { height: 10, backgroundColor: '#f1f5f9', borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
-  progressBarFill: { height: '100%', borderRadius: 5 },
-  statusGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  statusMiniCard: { flex: 1, backgroundColor: '#fff', padding: 12, borderRadius: 15, marginRight: 8, borderLeftWidth: 4, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-  statusMiniLabel: { fontSize: 10, color: '#64748b', fontWeight: '600', textTransform: 'uppercase' },
-  statusMiniValue: { fontSize: 16, fontWeight: 'bold', marginTop: 4 },
+  // Modal Full Styles
+  modalOverlayFull: { 
+    flex: 1, 
+    backgroundColor: '#f4f7fe' 
+  },
+  modalContentFull: { 
+    flex: 1, 
+    padding: 25 
+  },
+  modalHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 25 
+  },
+  modalTitle: { 
+    fontSize: 22, 
+    fontWeight: 'bold', 
+    color: '#2c3e50' 
+  },
+  analyticsHeroCard: { 
+    padding: 30, 
+    borderRadius: 28, 
+    alignItems: 'center', 
+    marginBottom: 25,
+    elevation: 6
+  },
+  heroLabel: { 
+    color: 'rgba(255,255,255,0.7)', 
+    fontSize: 12, 
+    fontWeight: '800', 
+    letterSpacing: 1,
+    marginBottom: 5 
+  },
+  heroValue: { 
+    color: '#fff', 
+    fontSize: 32, 
+    fontWeight: '900' 
+  },
+  heroBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 15
+  },
+  heroBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold'
+  },
+  miniStatsGrid: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 25 
+  },
+  miniStatCard: { 
+    flex: 0.31, 
+    backgroundColor: '#fff', 
+    padding: 15, 
+    borderRadius: 20, 
+    alignItems: 'center',
+    elevation: 3
+  },
+  miniStatValue: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#2c3e50' 
+  },
+  miniStatLabel: { 
+    fontSize: 9, 
+    fontWeight: '800', 
+    color: '#95a5a6',
+    marginTop: 4
+  },
+  chartCard: { 
+    backgroundColor: '#fff', 
+    padding: 25, 
+    borderRadius: 28, 
+    elevation: 4 
+  },
+  chartTitle: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: '#2c3e50', 
+    marginBottom: 20 
+  },
+  chartBarContainer: { 
+    height: 16, 
+    backgroundColor: '#f1f5f9', 
+    borderRadius: 8, 
+    flexDirection: 'row', 
+    overflow: 'hidden' 
+  },
+  chartBar: { 
+    height: '100%' 
+  },
+  chartLegend: { 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    marginTop: 20 
+  },
+  legendItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginHorizontal: 12 
+  },
+  dot: { 
+    width: 10, 
+    height: 10, 
+    borderRadius: 5, 
+    marginRight: 8 
+  },
+  legendText: { 
+    fontSize: 12, 
+    color: '#64748b', 
+    fontWeight: '700' 
+  },
 
-  analyticsCardGradient: { padding: 20, borderRadius: 24, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10 },
-  statusMiniStat: { flex: 1, padding: 12, borderRadius: 15, marginRight: 8, alignItems: 'center', justifyContent: 'center' },
-  statusMiniValueWhite: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  statusMiniLabelWhite: { fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: '600', textTransform: 'uppercase', marginTop: 2 },
-
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 15, borderRadius: 15, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 15, height: 50 },
-  searchInput: { flex: 1, marginLeft: 10, fontSize: 15, color: '#1e293b' },
-
-  statusFilterContainer: { marginBottom: 15 },
-  statusChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', marginRight: 8, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
-  activeStatusChip: { backgroundColor: '#2e64e5', borderColor: '#2e64e5' },
-  statusChipText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  activeStatusChipText: { color: '#fff' },
-
-  tabContainer: { flexDirection: 'row', backgroundColor: '#eef2f8', borderRadius: 15, padding: 6, marginBottom: 15 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
-  activeTab: { backgroundColor: '#fff', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  tabText: { fontWeight: '600', color: '#94a3b8' },
-  activeTabText: { color: '#2e64e5' },
-  bookingCard: { backgroundColor: '#fff', padding: 18, borderRadius: 20, marginBottom: 15, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  guestName: { fontSize: 17, fontWeight: 'bold', color: '#1e293b' },
-  statusText: { fontSize: 12, color: '#64748b', marginTop: 2, fontWeight: '500' },
-  amount: { fontSize: 17, fontWeight: 'bold', color: '#2e64e5' },
-  cardBody: { marginBottom: 15, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  detail: { fontSize: 14, color: '#475569', marginBottom: 6, fontWeight: '400' },
-  cardBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginTop: 4 },
-  cardBadgeText: { fontSize: 10, fontWeight: 'bold', color: '#2e64e5', marginLeft: 4 },
-  actionContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginRight: 8, marginTop: 8, backgroundColor: '#f8fafc' },
-  actionBtnText: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
-  confirmBtn: { backgroundColor: '#f0fdf4' },
-  rejectBtn: { backgroundColor: '#fef2f2' },
-  pdfBtn: { backgroundColor: '#eff6ff' },
-  emailDirectBtn: { backgroundColor: '#f5f3ff' },
-  deleteBtn: { paddingHorizontal: 8 },
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#94a3b8', fontSize: 16 },
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  // Modal Styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, maxHeight: '90%' },
-  previewModalContainer: { flex: 1, backgroundColor: '#f4f7fe', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20, paddingTop: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 15 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b' },
-  modalScroll: { flex: 1 },
-  editSection: { marginBottom: 25 },
-  inputLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, fontSize: 16, color: '#1e293b', marginBottom: 15, borderWidth: 1, borderColor: '#e2e8f0' },
-  viewGroup: { marginBottom: 12 },
-  viewValue: { backgroundColor: '#fff', borderRadius: 12, padding: 12, fontSize: 15, color: '#334155', borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-  previewCard: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, marginBottom: 30, borderWidth: 1, borderColor: '#e2e8f0' },
-  previewHeader: { padding: 25, alignItems: 'center' },
-  previewLogo: { color: '#fff', fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  previewType: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 1 },
-  previewContent: { padding: 25, alignItems: 'center' },
-  previewName: { fontSize: 20, fontWeight: 'bold', color: '#1e293b' },
-  previewItem: { fontSize: 15, color: '#64748b', marginTop: 6, fontWeight: '500' },
-  previewPrice: { fontSize: 28, fontWeight: '800', color: '#2e64e5', marginTop: 20 },
-  modalFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 20, borderTopWidth: 1, borderTopColor: '#e2e8f0', backgroundColor: '#f4f7fe' },
-  footerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-  shareBtn: { backgroundColor: '#2e64e5' },
-  emailBtn: { backgroundColor: '#7e22ce' },
-  footerBtnText: { color: '#fff', fontWeight: 'bold', marginLeft: 10, fontSize: 16 }
+  // Preview Card Styles
+  previewCard: { 
+    backgroundColor: '#fff', 
+    borderRadius: 28, 
+    overflow: 'hidden', 
+    elevation: 8,
+    marginBottom: 25
+  },
+  previewHeader: { 
+    padding: 30, 
+    alignItems: 'center' 
+  },
+  previewLogo: { 
+    color: '#fff', 
+    fontSize: 28, 
+    fontWeight: '900', 
+    letterSpacing: -1 
+  },
+  previewSub: { 
+    color: 'rgba(255,255,255,0.7)', 
+    fontSize: 10, 
+    fontWeight: '800', 
+    marginTop: 5,
+    letterSpacing: 2
+  },
+  previewBody: { 
+    padding: 25 
+  },
+  previewRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 15 
+  },
+  pLabel: { 
+    fontSize: 11, 
+    color: '#94a3b8', 
+    fontWeight: '800' 
+  },
+  pValue: { 
+    fontSize: 15, 
+    color: '#2c3e50', 
+    fontWeight: '700' 
+  },
+  previewDivider: { 
+    height: 1, 
+    backgroundColor: '#f1f5f9', 
+    marginVertical: 15 
+  },
+  pLabelTotal: { 
+    fontSize: 14, 
+    color: '#64748b', 
+    fontWeight: '800' 
+  },
+  pValueTotal: { 
+    fontSize: 24, 
+    color: '#34495e', 
+    fontWeight: '900' 
+  },
+  shareBtnLarge: { 
+    backgroundColor: '#34495e', 
+    flexDirection: 'row', 
+    padding: 18, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    elevation: 4
+  },
+  shareBtnText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    marginLeft: 12 
+  }
 });
 
 export default FinanceManageScreen;

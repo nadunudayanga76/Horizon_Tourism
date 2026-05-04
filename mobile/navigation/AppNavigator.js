@@ -100,9 +100,9 @@ const CustomDrawerContent = (props) => {
 };
 
 const ResidenceStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="ResidencesList" component={ResidenceListScreen} options={{ title: 'Hotels' }} />
-    <Stack.Screen name="ResidenceDetail" component={ResidenceDetailScreen} options={{ title: 'Hotel Details' }} />
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ResidencesList" component={ResidenceListScreen} />
+    <Stack.Screen name="ResidenceDetail" component={ResidenceDetailScreen} />
   </Stack.Navigator>
 );
 
@@ -124,7 +124,7 @@ const MainTabs = () => {
           else if (route.name === 'MessagesTab') iconName = focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline';
           return <Ionicons name={iconName} size={24} color={color} />;
         },
-        tabBarActiveTintColor: '#0a23e0',
+        tabBarActiveTintColor: '#34495e',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: {
           paddingBottom: 15,
@@ -186,7 +186,7 @@ const MainDrawer = () => {
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
           return <Ionicons name={iconName} size={22} color={color} />;
         },
-        drawerActiveTintColor: '#2e64e5',
+        drawerActiveTintColor: '#34495e',
         drawerInactiveTintColor: '#64748b',
         drawerLabelStyle: {
           marginLeft: -15,
@@ -222,13 +222,13 @@ const MainDrawer = () => {
 const RootStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="MainDrawer" component={MainDrawer} options={{ headerShown: false }} />
-    <Stack.Screen name="ManageTransport" component={TransportManageScreen} options={{ title: 'Manage Transport' }} />
-    <Stack.Screen name="ManageGuides" component={GuideManageScreen} options={{ title: 'Manage Guides' }} />
-    <Stack.Screen name="ManageFinance" component={FinanceManageScreen} options={{ title: 'Finance Dashboard' }} />
-    <Stack.Screen name="ManageFeedback" component={FeedbackManageScreen} options={{ title: 'User Feedback' }} />
-    <Stack.Screen name="ManageResidences" component={ResidenceManageScreen} options={{ title: 'Manage Properties' }} />
-    <Stack.Screen name="AddResidence" component={AddResidenceScreen} options={{ title: 'Add Property' }} />
-    <Stack.Screen name="BookingForm" component={BookingFormScreen} options={{ title: 'Complete Booking' }} />
+    <Stack.Screen name="ManageTransport" component={TransportManageScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="ManageGuides" component={GuideManageScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="ManageFinance" component={FinanceManageScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="ManageFeedback" component={FeedbackManageScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="ManageResidences" component={ResidenceManageScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="AddResidence" component={AddResidenceScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="BookingForm" component={BookingFormScreen} options={{ headerShown: false }} />
     <Stack.Screen name="ResidenceDetail" component={ResidenceDetailScreen} options={{ title: 'Hotel Details' }} />
     <Stack.Screen name="DriverList" component={DriverListScreen} options={{ title: 'Drivers' }} />
     <Stack.Screen name="TransportBookingForm" component={TransportBookingFormScreen} options={{ title: 'Transport Booking' }} />
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#2e64e5',
+    color: '#34495e',
   },
   userInfoText: {
     marginTop: 5,

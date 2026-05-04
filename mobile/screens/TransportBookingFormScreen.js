@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, TextInput, 
-  TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image 
+  TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image, SafeAreaView 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -132,65 +132,82 @@ const TransportBookingFormScreen = ({ route, navigation }) => {
     }
   };
 
+  const renderInput = (label, value, onChange, icon, error, props = {}) => (
+    <View style={styles.inputGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+        <Ionicons name={icon} size={20} color="#94a3b8" style={styles.inputIcon} />
+        <TextInput 
+          style={styles.input}
+          value={value}
+          onChangeText={onChange}
+          placeholderTextColor="#94a3b8"
+          {...props}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#2e64e5', '#1c3d8a']} style={styles.header}>
-          <Text style={styles.headerTitle}>Transport Booking</Text>
-          <Text style={styles.headerSub}>{vehicle.vehicleModel} - {vehicle.vehicleNumber}</Text>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false} bounces={false}>
+        <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.header}>
+          <SafeAreaView>
+            <View style={styles.headerContent}>
+              <View style={styles.vehicleInfo}>
+                <Ionicons name="car-sport" size={24} color="#fff" />
+                <Text style={styles.headerSubText}>{vehicle.vehicleModel} • {vehicle.vehicleNumber}</Text>
+              </View>
+            </View>
+          </SafeAreaView>
         </LinearGradient>
 
-        <View style={styles.formContainer}>
-          <Text style={styles.sectionTitle}>Personal Details</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput 
-              style={styles.input} 
-              value={fullName} 
-              onChangeText={handleNameChange} 
-              placeholder="Your Name" 
-            />
-            {errors.fullName ? <Text style={styles.errorText}>{errors.fullName}</Text> : null}
-          </View>
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Phone Number</Text>
-              <TextInput 
-                style={styles.input} 
-                value={phone} 
-                onChangeText={handlePhoneChange} 
-                keyboardType="numeric" 
-                maxLength={10} 
-              />
-              {errors.phone ? <Text style={styles.errorText}>{errors.phone}</Text> : null}
+        <View style={styles.formCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIcon}>
+              <Ionicons name="person" size={20} color="#fff" />
             </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>ID Number</Text>
-              <TextInput 
-                style={styles.input} 
-                value={idNumber} 
-                onChangeText={handleIdChange} 
-                keyboardType="numeric" 
-                maxLength={12} 
-              />
-              {errors.idNumber ? <Text style={styles.errorText}>{errors.idNumber}</Text> : null}
-            </View>
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <TextInput style={styles.input} value={email} onChangeText={handleEmailChange} keyboardType="email-address" placeholder="example@mail.com" />
-            {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+            <Text style={styles.sectionTitle}>Personal Information</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Dates</Text>
+          {renderInput('Full Name', fullName, handleNameChange, 'person-outline', errors.fullName, { placeholder: 'Enter your full name' })}
+          
           <View style={styles.row}>
-            <TouchableOpacity style={[styles.datePicker, { marginRight: 10 }]} onPress={() => setShowIn(true)}>
-              <Text style={styles.dateLabel}>Check-In</Text>
-              <Text style={styles.dateValue}>{checkIn.toLocaleDateString()}</Text>
+            <View style={{ flex: 1, marginRight: 15 }}>
+              {renderInput('Phone Number', phone, handlePhoneChange, 'call-outline', errors.phone, { keyboardType: 'numeric', maxLength: 10, placeholder: '07x xxxxxxx' })}
+            </View>
+            <View style={{ flex: 1 }}>
+              {renderInput('ID Number', idNumber, handleIdChange, 'card-outline', errors.idNumber, { keyboardType: 'numeric', maxLength: 12, placeholder: 'National ID' })}
+            </View>
+          </View>
+
+          {renderInput('Email Address', email, handleEmailChange, 'mail-outline', errors.email, { keyboardType: 'email-address', placeholder: 'your@email.com' })}
+
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIcon, { backgroundColor: '#e67e22' }]}>
+              <Ionicons name="calendar" size={20} color="#fff" />
+            </View>
+            <Text style={styles.sectionTitle}>Rental Period</Text>
+          </View>
+
+          <View style={styles.dateRow}>
+            <TouchableOpacity style={styles.dateItem} onPress={() => setShowIn(true)}>
+              <Text style={styles.dateLabel}>PICKUP DATE</Text>
+              <View style={styles.dateValueWrapper}>
+                <Ionicons name="calendar-outline" size={16} color="#34495e" />
+                <Text style={styles.dateValueText}>{checkIn.toLocaleDateString()}</Text>
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.datePicker} onPress={() => setShowOut(true)}>
-              <Text style={styles.dateLabel}>Check-Out</Text>
-              <Text style={styles.dateValue}>{checkOut.toLocaleDateString()}</Text>
+            <View style={styles.dateArrow}>
+              <Ionicons name="arrow-forward" size={20} color="#cbd5e1" />
+            </View>
+            <TouchableOpacity style={styles.dateItem} onPress={() => setShowOut(true)}>
+              <Text style={styles.dateLabel}>RETURN DATE</Text>
+              <View style={styles.dateValueWrapper}>
+                <Ionicons name="calendar-outline" size={16} color="#34495e" />
+                <Text style={styles.dateValueText}>{checkOut.toLocaleDateString()}</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -222,80 +239,85 @@ const TransportBookingFormScreen = ({ route, navigation }) => {
             />
           )}
 
-          <Text style={styles.sectionTitle}>Select Driver (Optional)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.driverScroll}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIcon, { backgroundColor: '#3498db' }]}>
+              <Ionicons name="star" size={20} color="#fff" />
+            </View>
+            <Text style={styles.sectionTitle}>Select Driver (Optional)</Text>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.driverScroll} contentContainerStyle={{ paddingBottom: 10 }}>
             {drivers.map(driver => (
               <TouchableOpacity 
                 key={driver._id} 
                 style={[styles.driverCard, selectedDriver?._id === driver._id && styles.activeDriver]}
                 onPress={() => setSelectedDriver(selectedDriver?._id === driver._id ? null : driver)}
               >
-                <View style={styles.driverAvatarContainer}>
+                <View style={styles.driverAvatarWrapper}>
                   {driver.image && driver.image !== 'default-driver.png' ? (
                     <Image source={{ uri: driver.image }} style={styles.driverAvatar} />
                   ) : (
-                    <Ionicons name="person-circle" size={50} color={selectedDriver?._id === driver._id ? '#fff' : '#2e64e5'} />
+                    <Ionicons name="person-circle" size={55} color={selectedDriver?._id === driver._id ? '#fff' : '#34495e'} />
+                  )}
+                  {selectedDriver?._id === driver._id && (
+                    <View style={styles.checkBadge}>
+                      <Ionicons name="checkmark" size={12} color="#fff" />
+                    </View>
                   )}
                 </View>
                 <Text style={[styles.driverName, selectedDriver?._id === driver._id && {color: '#fff'}]} numberOfLines={1}>{driver.name}</Text>
-                <Text style={[styles.driverPrice, selectedDriver?._id === driver._id && {color: '#fff'}]}>LKR {driver.price}/day</Text>
+                <Text style={[styles.driverPrice, selectedDriver?._id === driver._id && {color: 'rgba(255,255,255,0.8)'}]}>LKR {driver.price}/day</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <Text style={styles.sectionTitle}>Payment Details (Secure)</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Card Number</Text>
-            <TextInput 
-              style={styles.input} 
-              value={cardNo} 
-              onChangeText={handleCardNoChange} 
-              keyboardType="numeric" 
-              placeholder="1234 5678 9012" 
-              maxLength={12} 
-            />
-            {errors.cardNo ? <Text style={styles.errorText}>{errors.cardNo}</Text> : null}
-          </View>
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Expiry</Text>
-              <TextInput 
-                style={styles.input} 
-                value={expiry} 
-                onChangeText={handleExpiryChange} 
-                placeholder="MM/YY" 
-                maxLength={5} 
-                keyboardType="numeric" 
-              />
-              {errors.expiry ? <Text style={styles.errorText}>{errors.expiry}</Text> : null}
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIcon, { backgroundColor: '#27ae60' }]}>
+              <Ionicons name="shield-checkmark" size={20} color="#fff" />
             </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>CVV</Text>
-              <TextInput 
-                style={styles.input} 
-                value={cvv} 
-                onChangeText={handleCvvChange} 
-                keyboardType="numeric" 
-                placeholder="123" 
-                maxLength={3} 
-                secureTextEntry 
-              />
-              {errors.cvv ? <Text style={styles.errorText}>{errors.cvv}</Text> : null}
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+          </View>
+
+          {renderInput('Card Number', cardNo, handleCardNoChange, 'card-outline', errors.cardNo, { keyboardType: 'numeric', placeholder: 'xxxx xxxx xxxx xxxx', maxLength: 12 })}
+          
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: 15 }}>
+              {renderInput('Expiry', expiry, handleExpiryChange, 'calendar-outline', errors.expiry, { placeholder: 'MM/YY', maxLength: 5, keyboardType: 'numeric' })}
+            </View>
+            <View style={{ flex: 1 }}>
+              {renderInput('CVV', cvv, handleCvvChange, 'lock-closed-outline', errors.cvv, { keyboardType: 'numeric', placeholder: 'xxx', maxLength: 3, secureTextEntry: true })}
             </View>
           </View>
 
-          <View style={styles.totalBox}>
-            <Text style={styles.totalLabel}>Total Estimated Price</Text>
-            <Text style={styles.totalValue}>LKR {calculateTotalPrice().toFixed(2)}</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Vehicle Rent</Text>
+              <Text style={styles.summaryValue}>LKR {vehicle.price.toLocaleString()}</Text>
+            </View>
+            {selectedDriver && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Driver Fee</Text>
+                <Text style={styles.summaryValue}>LKR {selectedDriver.price.toLocaleString()}</Text>
+              </View>
+            )}
+            <View style={styles.divider} />
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Grand Total</Text>
+              <Text style={styles.totalValue}>LKR {calculateTotalPrice().toLocaleString()}</Text>
+            </View>
           </View>
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleBooking} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : (
-              <>
-                <Text style={styles.submitBtnText}>Request Booking</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" style={{marginLeft: 10}} />
-              </>
-            )}
+            <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.btnGradient}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.submitBtnText}>Confirm Booking</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#fff" style={{marginLeft: 10}} />
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -304,32 +326,271 @@ const TransportBookingFormScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { padding: 30, paddingTop: 60, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  headerSub: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 5 },
-  formContainer: { padding: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginTop: 25, marginBottom: 15 },
-  inputGroup: { marginBottom: 15 },
-  label: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 8 },
-  input: { backgroundColor: '#fff', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', fontSize: 15 },
-  errorText: { color: 'red', fontSize: 11, marginTop: 4, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  header: { 
+    padding: 25, 
+    paddingTop: Platform.OS === 'ios' ? 10 : 40, 
+    borderBottomLeftRadius: 40, 
+    borderBottomRightRadius: 40,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10
+  },
+  headerContent: {
+    marginBottom: 5
+  },
+  vehicleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10
+  },
+  headerSubText: { 
+    fontSize: 18, 
+    color: '#fff', 
+    marginLeft: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5
+  },
+  formCard: { 
+    padding: 20,
+    marginTop: -20,
+    backgroundColor: '#f1f5f9'
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 25,
+    marginBottom: 20
+  },
+  sectionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#34495e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12
+  },
+  sectionTitle: { 
+    fontSize: 18, 
+    fontWeight: '900', 
+    color: '#1e293b',
+    letterSpacing: 0.5
+  },
+  inputGroup: { marginBottom: 20 },
+  label: { 
+    fontSize: 12, 
+    fontWeight: '800', 
+    color: '#64748b', 
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    height: 55,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5
+  },
+  inputIcon: { marginRight: 12 },
+  input: { 
+    flex: 1,
+    fontSize: 16, 
+    color: '#1e293b',
+    fontWeight: '600'
+  },
+  inputError: {
+    borderColor: '#ef4444',
+  },
+  errorText: { 
+    color: '#ef4444', 
+    fontSize: 11, 
+    marginTop: 6, 
+    fontWeight: '700',
+    marginLeft: 5
+  },
   row: { flexDirection: 'row' },
-  datePicker: { flex: 1, backgroundColor: '#fff', padding: 15, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' },
-  dateLabel: { fontSize: 11, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' },
-  dateValue: { fontSize: 15, color: '#1e293b', marginTop: 4, fontWeight: '600' },
-  driverScroll: { marginBottom: 10 },
-  driverCard: { backgroundColor: '#fff', padding: 15, borderRadius: 20, marginRight: 15, alignItems: 'center', width: 130, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
-  activeDriver: { backgroundColor: '#2e64e5', borderColor: '#2e64e5' },
-  driverAvatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 10 },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 5
+  },
+  dateItem: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  dateLabel: { 
+    fontSize: 10, 
+    color: '#94a3b8', 
+    fontWeight: '800', 
+    letterSpacing: 1,
+    marginBottom: 8
+  },
+  dateValueWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  dateValueText: { 
+    fontSize: 14, 
+    color: '#34495e', 
+    marginLeft: 8, 
+    fontWeight: '800' 
+  },
+  dateArrow: {
+    paddingHorizontal: 15
+  },
+  driverScroll: { 
+    marginTop: 5,
+    marginHorizontal: -5
+  },
+  driverCard: { 
+    backgroundColor: '#fff', 
+    padding: 15, 
+    borderRadius: 25, 
+    marginHorizontal: 8, 
+    alignItems: 'center', 
+    width: 135, 
+    borderWidth: 2, 
+    borderColor: '#fff', 
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10
+  },
+  activeDriver: { 
+    backgroundColor: '#34495e', 
+    borderColor: '#34495e' 
+  },
+  driverAvatarWrapper: { 
+    width: 70, 
+    height: 70, 
+    borderRadius: 35, 
+    backgroundColor: '#f1f5f9', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    overflow: 'hidden', 
+    marginBottom: 12,
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: '#fff'
+  },
   driverAvatar: { width: '100%', height: '100%' },
-  driverName: { fontSize: 13, fontWeight: 'bold', color: '#1e293b', textAlign: 'center' },
-  driverPrice: { fontSize: 10, color: '#64748b', marginTop: 2 },
-  totalBox: { backgroundColor: '#eef2ff', padding: 20, borderRadius: 20, marginTop: 30, alignItems: 'center' },
-  totalLabel: { fontSize: 14, color: '#64748b', fontWeight: '600' },
-  totalValue: { fontSize: 28, fontWeight: 'bold', color: '#2e64e5', marginTop: 5 },
-  submitBtn: { backgroundColor: '#2e64e5', padding: 18, borderRadius: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 25, marginBottom: 50 },
-  submitBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  checkBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#27ae60',
+    borderWidth: 2,
+    borderColor: '#34495e',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  driverName: { 
+    fontSize: 14, 
+    fontWeight: '900', 
+    color: '#1e293b', 
+    textAlign: 'center' 
+  },
+  driverPrice: { 
+    fontSize: 11, 
+    color: '#64748b', 
+    marginTop: 4,
+    fontWeight: '700'
+  },
+  summaryCard: { 
+    backgroundColor: '#fff', 
+    padding: 25, 
+    borderRadius: 25, 
+    marginTop: 35,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.05
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  summaryLabel: { 
+    fontSize: 14, 
+    color: '#64748b', 
+    fontWeight: '600' 
+  },
+  summaryValue: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '800'
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginVertical: 15
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#1e293b'
+  },
+  totalValue: { 
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: '#34495e' 
+  },
+  submitBtn: { 
+    marginTop: 35, 
+    marginBottom: 50,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: '#34495e',
+    shadowOpacity: 0.3,
+    shadowRadius: 10
+  },
+  btnGradient: {
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingVertical: 20
+  },
+  submitBtnText: { 
+    color: '#fff', 
+    fontWeight: '900', 
+    fontSize: 18,
+    letterSpacing: 1
+  }
 });
 
 export default TransportBookingFormScreen;

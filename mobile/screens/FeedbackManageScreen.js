@@ -1,10 +1,11 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, ScrollView, Modal, RefreshControl, TextInput, Alert
+  TouchableOpacity, ScrollView, Modal, RefreshControl, TextInput, Alert,
+  StatusBar, SafeAreaView
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useState, useEffect, useCallback } from 'react';
-import { feedbackService, reviewService, reelService } from '../services/api';
+import { reviewService, reelService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,6 +13,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { UPLOAD_URL } from '../utils/config';
 
 const FeedbackManageScreen = () => {
+  const navigation = useNavigation();
   const [propertyReviews, setPropertyReviews] = useState([]);
   const [filteredReviews, setFilteredReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,8 @@ const FeedbackManageScreen = () => {
   const [activeTab, setActiveTab] = useState('reviews'); // 'reviews' or 'reels'
   const [allReels, setAllReels] = useState([]);
   const [editingReel, setEditingReel] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [reelErrors, setReelErrors] = useState({ title: '', description: '' });
   
   // Filter States
   const [typeFilter, setTypeFilter] = useState('All'); // 'All', 'Hotels', 'Guides'
@@ -157,10 +161,44 @@ const FeedbackManageScreen = () => {
     );
   };
 
-  const [selectedVideo, setSelectedVideo] = useState(null);
+  const handleDeleteReview = async (id) => {
+    Alert.alert(
+      "Delete Review",
+      "Are you sure you want to delete this review permanently?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              const res = await reviewService.deleteReview(id);
+              if (res.data.success) {
+                Alert.alert('Success', 'Review deleted successfully');
+                fetchData();
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete review');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+
 
   const handleUploadReel = async () => {
     if (editingReel) {
+      // --- VALIDATION START: Check mandatory fields for Marketing Reels ---
+      if (!reelTitle.trim() || !reelDescription.trim()) {
+        setReelErrors({
+          title: !reelTitle.trim() ? 'Title is required' : '',
+          description: !reelDescription.trim() ? 'Description is required' : ''
+        });
+        return;
+      }
+      // --- VALIDATION END ---
       // Update logic
       setUploading(true);
       try {
@@ -184,14 +222,23 @@ const FeedbackManageScreen = () => {
       return;
     }
 
+    // ═══════════════════════════════════════════════
+    // VALIDATION START — Marketing Reel Create Form
+    // Rule 1: Title and Description are mandatory fields
+    if (!reelTitle.trim() || !reelDescription.trim()) {
+      setReelErrors({
+        title: !reelTitle.trim() ? 'Title is required' : '',
+        description: !reelDescription.trim() ? 'Description is required' : ''
+      });
+      return;
+    }
+    // Rule 2: A video file must be selected before publishing
     if (!selectedVideo) {
       alert('Please select a video file first');
       return;
     }
-    if (!reelTitle.trim()) {
-      alert('Please enter a title for your reel');
-      return;
-    }
+    // VALIDATION END
+    // ═══════════════════════════════════════════════
 
     setUploading(true);
     try {
@@ -293,13 +340,13 @@ const FeedbackManageScreen = () => {
       <View style={[styles.card, isGuide ? styles.guideCard : styles.propertyCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.userInfo}>
-            <View style={[styles.avatar, { backgroundColor: isGuide ? '#7e22ce' : '#2e64e5' }]}>
+            <View style={[styles.avatar, { backgroundColor: '#34495e' }]}>
               <Text style={styles.avatarText}>{item.userName?.charAt(0) || 'U'}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.userText}>{item.userName}</Text>
               <Text style={styles.propertyTarget}>
-                <Ionicons name={isGuide ? 'person' : 'business'} size={11} color={isGuide ? '#7e22ce' : '#2e64e5'} />
+                <Ionicons name={isGuide ? 'person' : 'business'} size={11} color="#34495e" />
                 {' '}{target}
               </Text>
             </View>
@@ -312,12 +359,17 @@ const FeedbackManageScreen = () => {
         </View>
         <Text style={styles.commentText}>{item.comment}</Text>
         <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: isGuide ? '#f5f3ff' : '#e0e7ff' }]}>
-            <Text style={[styles.tagText, { color: isGuide ? '#7e22ce' : '#2e64e5' }]}>
+          <View style={[styles.tag, { backgroundColor: '#f1f5f9' }]}>
+            <Text style={[styles.tagText, { color: '#34495e' }]}>
               {isGuide ? 'GUIDE' : 'PROPERTY'}
             </Text>
           </View>
-          <Text style={styles.dateText}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+          <View style={styles.cardFooterActions}>
+            <Text style={styles.dateText}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+            <TouchableOpacity onPress={() => handleDeleteReview(item._id)} style={styles.reviewDeleteBtn}>
+              <Ionicons name="trash-outline" size={16} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -325,55 +377,61 @@ const FeedbackManageScreen = () => {
 
   if (loading) return (
     <View style={styles.centered}>
-      <ActivityIndicator size="large" color="#7e22ce" />
+      <ActivityIndicator size="large" color="#34495e" />
     </View>
   );
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Branded Premium Header */}
+      <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.header}>
+        <SafeAreaView>
+          {/* Decorative background element */}
+          <View style={styles.headerDecoration} />
+          
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerTitle}>Feedback Dashboard</Text>
+              <View style={styles.realtimeRow}>
+                <View style={styles.pulseDot} />
+                <Text style={styles.headerSub}>Live Insights</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.glassAnalyticsTrigger} onPress={() => setAnalyticsVisible(true)}>
+              <Ionicons name="stats-chart" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
 
-      {/* Header */}
-      <LinearGradient colors={['#7e22ce', '#4f14a1']} style={styles.headerGradient}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Feedback Dashboard</Text>
-            <Text style={styles.headerSub}>
-              {typeFilter === 'All' && ratingFilter === 'All' 
-                ? `${totalGlobal} total reviews collected`
-                : `${totalInView} reviews match current filters`}
-            </Text>
+          <View style={styles.headerStatsContainer}>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>Total Feedback</Text>
+              <View style={styles.statValueRow}>
+                <Text style={styles.statValue}>{totalGlobal}</Text>
+                <Text style={styles.statUnit}>Reviews</Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity style={styles.premiumCreateBtn} onPress={openReelModal}>
+              <LinearGradient colors={['#fff', '#f8fafc']} style={styles.btnInnerGrad}>
+                <Ionicons name="videocam" size={20} color="#34495e" />
+                <Text style={styles.btnText}>Create Reel</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.analyticsTrigger} onPress={() => setAnalyticsVisible(true)}>
-            <Ionicons name="stats-chart" size={18} color="#fff" />
-            <Text style={styles.analyticsTriggerText}>Analytics</Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.headerActionRow}>
-          <TouchableOpacity 
-            style={[styles.analyticsTrigger, { backgroundColor: '#ff7675', elevation: 4 }]} 
-            onPress={openReelModal}
-          >
-            <Ionicons name="videocam" size={18} color="#fff" />
-            <Text style={styles.analyticsTriggerText}>Create Reel</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick stat pills */}
-        <View style={styles.pillRow}>
-          <View style={styles.pill}>
-            <Ionicons name="star" size={14} color="#f1c40f" />
-            <Text style={styles.pillText}>{avgRating} avg</Text>
+          <View style={styles.pillRow}>
+            <View style={styles.glassPill}>
+              <Ionicons name="star" size={14} color="#f1c40f" />
+              <Text style={styles.pillText}>{avgRating} Rating</Text>
+            </View>
+            <View style={styles.glassPill}>
+              <Ionicons name="checkmark-done-circle" size={16} color="#2ecc71" />
+              <Text style={styles.pillText}>{positive} Positive</Text>
+            </View>
           </View>
-          <View style={styles.pill}>
-            <Ionicons name="thumbs-up-outline" size={14} color="#2ecc71" />
-            <Text style={styles.pillText}>{positive} positive</Text>
-          </View>
-          <View style={styles.pill}>
-            <Ionicons name="thumbs-down-outline" size={14} color="#e74c3c" />
-            <Text style={styles.pillText}>{negative} critical</Text>
-          </View>
-        </View>
+        </SafeAreaView>
       </LinearGradient>
 
       {/* Tab Switcher */}
@@ -382,14 +440,14 @@ const FeedbackManageScreen = () => {
           style={[styles.tab, activeTab === 'reviews' && styles.activeTab]} 
           onPress={() => setActiveTab('reviews')}
         >
-          <Ionicons name="star" size={16} color={activeTab === 'reviews' ? '#7e22ce' : '#64748b'} />
+          <Ionicons name="chatbubbles" size={16} color={activeTab === 'reviews' ? '#34495e' : '#64748b'} />
           <Text style={[styles.tabText, activeTab === 'reviews' && styles.activeTabText]}>User Reviews</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'reels' && styles.activeTab]} 
           onPress={() => setActiveTab('reels')}
         >
-          <Ionicons name="videocam" size={16} color={activeTab === 'reels' ? '#7e22ce' : '#64748b'} />
+          <Ionicons name="videocam" size={16} color={activeTab === 'reels' ? '#34495e' : '#64748b'} />
           <Text style={[styles.tabText, activeTab === 'reels' && styles.activeTabText]}>Marketing Reels</Text>
         </TouchableOpacity>
       </View>
@@ -418,7 +476,7 @@ const FeedbackManageScreen = () => {
                   onPress={() => setRatingFilter(star)}
                 >
                   <Text style={[styles.filterChipText, ratingFilter === star && styles.activeFilterChipText]}>
-                    {star === 'All' ? 'All Stars' : `${star} ★`}
+                    {star === 'All' ? 'All' : `${star} ★`}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -458,7 +516,7 @@ const FeedbackManageScreen = () => {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
               {/* ── Overall Score ── */}
-              <LinearGradient colors={['#7e22ce', '#4f14a1']} style={styles.scoreCard}>
+              <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.scoreCard}>
                 <View style={styles.scoreLeft}>
                   <Text style={styles.scoreNum}>{avgRating}</Text>
                   <View style={{ flexDirection: 'row', marginTop: 4 }}>
@@ -502,12 +560,12 @@ const FeedbackManageScreen = () => {
               {/* ── Feedback volume ── */}
               <View style={styles.analyticsCard}>
                 <View style={styles.analyticsHeader}>
-                  <Ionicons name="pie-chart-outline" size={20} color="#7e22ce" />
+                  <Ionicons name="pie-chart-outline" size={20} color="#34495e" />
                   <Text style={styles.analyticsTitle}>Feedback Volume</Text>
                 </View>
                 <View style={styles.volumeRow}>
-                  {[
-                    { label: 'Guide Reviews', count: guideReviews.length, color: '#7e22ce', icon: 'person' },
+                    {[
+                    { label: 'Guide Reviews', count: guideReviews.length, color: '#34495e', icon: 'person' },
                     { label: 'Property Reviews', count: residenceReviews.length, color: '#2e64e5', icon: 'business' },
                   ].map(({ label, count, color, icon }) => {
                     const pct = totalInView > 0 ? ((count / totalInView) * 100).toFixed(0) : 0;
@@ -531,11 +589,11 @@ const FeedbackManageScreen = () => {
               {/* ── Category ratings ── */}
               <View style={styles.analyticsCard}>
                 <View style={styles.analyticsHeader}>
-                  <Ionicons name="bar-chart-outline" size={20} color="#7e22ce" />
+                  <Ionicons name="bar-chart-outline" size={20} color="#34495e" />
                   <Text style={styles.analyticsTitle}>Category Ratings</Text>
                 </View>
                 {[
-                  { label: 'Tour Guides', avg: avgGuideRating, count: guideReviews.length, color: '#7e22ce' },
+                  { label: 'Tour Guides', avg: avgGuideRating, count: guideReviews.length, color: '#34495e' },
                   { label: 'Properties', avg: avgResidenceRating, count: residenceReviews.length, color: '#2e64e5' },
                   { label: 'Current View', avg: avgRating, count: totalInView, color: '#ff7675' },
                 ].map(({ label, avg, count, color }) => {
@@ -587,7 +645,7 @@ const FeedbackManageScreen = () => {
       <Modal visible={reelModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { height: '85%' }]}>
-            <LinearGradient colors={['#7e22ce', '#4f14a1']} style={styles.formHeader}>
+            <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.formHeader}>
               <View style={styles.modalHeaderRow}>
                 <View>
                   <Text style={styles.formTitle}>{editingReel ? 'Update Reel' : 'Create New Reel'}</Text>
@@ -649,31 +707,39 @@ const FeedbackManageScreen = () => {
 
                 {/* Title Input */}
                 <Text style={[styles.inputLabel, { marginTop: 24 }]}>Reel Title</Text>
-                <View style={styles.inputWrapper}>
+                <View style={[styles.inputWrapper, reelErrors.title ? styles.inputError : null]}>
                   <Ionicons name="text-outline" size={20} color="#64748b" style={styles.inputIcon} />
                   <TextInput 
                     style={styles.textInput}
                     placeholder="E.g. Amazing Sunset in Ella"
                     value={reelTitle}
-                    onChangeText={setReelTitle}
+                    onChangeText={(txt) => {
+                      setReelTitle(txt);
+                      setReelErrors(prev => ({ ...prev, title: txt.trim() ? '' : 'Title is required' }));
+                    }}
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
+                {reelErrors.title ? <Text style={styles.liveErrorText}>{reelErrors.title}</Text> : null}
 
                 {/* Description Input */}
                 <Text style={[styles.inputLabel, { marginTop: 20 }]}>Reel Description</Text>
-                <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingVertical: 12 }]}>
+                <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingVertical: 12 }, reelErrors.description ? styles.inputError : null]}>
                   <Ionicons name="document-text-outline" size={20} color="#64748b" style={[styles.inputIcon, { marginTop: 2 }]} />
                   <TextInput 
                     style={[styles.textInput, { textAlignVertical: 'top' }]}
                     placeholder="Tell us more about this reel..."
                     value={reelDescription}
-                    onChangeText={setReelDescription}
+                    onChangeText={(txt) => {
+                      setReelDescription(txt);
+                      setReelErrors(prev => ({ ...prev, description: txt.trim() ? '' : 'Description is required' }));
+                    }}
                     multiline
                     numberOfLines={4}
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
+                {reelErrors.description ? <Text style={styles.liveErrorText}>{reelErrors.description}</Text> : null}
 
                 {/* Upload Action */}
                 <TouchableOpacity 
@@ -682,7 +748,7 @@ const FeedbackManageScreen = () => {
                   disabled={uploading || (!selectedVideo && !editingReel)}
                 >
                   <LinearGradient 
-                    colors={uploading || (!selectedVideo && !editingReel) ? ['#cbd5e1', '#94a3b8'] : ['#7e22ce', '#4f14a1']} 
+                    colors={uploading || (!selectedVideo && !editingReel) ? ['#cbd5e1', '#94a3b8'] : ['#34495e', '#2c3e50']} 
                     style={styles.buttonGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
@@ -716,159 +782,166 @@ const FeedbackManageScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Header
-  headerGradient: { paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  headerActionRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 16 },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
-  analyticsTrigger: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  analyticsTriggerText: { color: '#fff', fontWeight: '700', fontSize: 13, marginLeft: 6 },
-  pillRow: { flexDirection: 'row', gap: 10 },
-  pill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 5 },
-  pillText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  // Branded Premium Header
+  header: { paddingBottom: 30, paddingHorizontal: 20, position: 'relative', overflow: 'hidden' },
+  headerDecoration: { position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.03)' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 40, marginBottom: 35 },
+  headerTitle: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -1 },
+  realtimeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  pulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#2ecc71', marginRight: 8 },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  
+  glassAnalyticsTrigger: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  
+  headerStatsContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
+  statBox: { flex: 1 },
+  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 5 },
+  statValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  statValue: { fontSize: 44, fontWeight: '900', color: '#fff', lineHeight: 48 },
+  statUnit: { fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: '700' },
+  
+  premiumCreateBtn: { borderRadius: 18, overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  btnInnerGrad: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 10 },
+  btnText: { color: '#34495e', fontWeight: '900', fontSize: 14 },
+
+  pillRow: { flexDirection: 'row', gap: 12 },
+  glassPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', gap: 8 },
+  pillText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+
+  // Tabs
+  tabContainer: { flexDirection: 'row', backgroundColor: '#fff', paddingHorizontal: 20, elevation: 4 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderBottomWidth: 3, borderBottomColor: 'transparent', gap: 10 },
+  activeTab: { borderBottomColor: '#34495e' },
+  tabText: { fontSize: 14, fontWeight: '700', color: '#94a3b8' },
+  activeTabText: { color: '#34495e' },
 
   // Filters
-  filterSection: { backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  filterScroll: { paddingHorizontal: 16 },
-  filterGroup: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  divider: { width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 12 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  activeFilterChip: { backgroundColor: '#7e22ce', borderColor: '#7e22ce' },
-  filterChipText: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  filterSection: { backgroundColor: '#fff', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  filterScroll: { paddingHorizontal: 20 },
+  filterGroup: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  divider: { width: 1, height: 24, backgroundColor: '#e2e8f0', marginHorizontal: 10 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0' },
+  activeFilterChip: { backgroundColor: '#34495e', borderColor: '#34495e' },
+  filterChipText: { fontSize: 13, color: '#64748b', fontWeight: '700' },
   activeFilterChipText: { color: '#fff' },
-  // Cards
-  card: { backgroundColor: '#fff', padding: 16, borderRadius: 16, marginBottom: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
-  propertyCard: { borderLeftWidth: 4, borderLeftColor: '#2e64e5' },
-  guideCard: { borderLeftWidth: 4, borderLeftColor: '#7e22ce' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+
+  // Feed Cards
+  card: { backgroundColor: '#fff', padding: 20, borderRadius: 25, marginBottom: 15, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+  propertyCard: { borderLeftWidth: 5, borderLeftColor: '#2e64e5' },
+  guideCard: { borderLeftWidth: 5, borderLeftColor: '#34495e' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 15 },
   userInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#ff7675', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  userText: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  propertyTarget: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  ratingContainer: { flexDirection: 'row', marginTop: 2 },
-  commentText: { fontSize: 14, color: '#444', lineHeight: 21, marginBottom: 10 },
+  avatar: { width: 44, height: 44, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  avatarText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  userText: { fontSize: 15, fontWeight: '800', color: '#1e293b' },
+  propertyTarget: { fontSize: 12, color: '#64748b', marginTop: 3, fontWeight: '600' },
+  ratingContainer: { flexDirection: 'row', gap: 2 },
+  commentText: { fontSize: 15, color: '#475569', lineHeight: 22, marginBottom: 15, fontWeight: '500' },
   tagRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tag: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, backgroundColor: '#f1f5f9' },
-  tagText: { fontSize: 10, fontWeight: 'bold', color: '#64748b', letterSpacing: 0.5 },
-  dateText: { fontSize: 11, color: '#94a3b8' },
+  tag: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
+  tagText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  dateText: { fontSize: 11, color: '#94a3b8', fontWeight: '600' },
 
-  emptyState: { alignItems: 'center', marginTop: 80 },
-  emptyText: { marginTop: 12, color: '#999', fontSize: 16 },
+  emptyState: { alignItems: 'center', marginTop: 100 },
+  emptyText: { marginTop: 15, color: '#94a3b8', fontSize: 16, fontWeight: '600' },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: '#f8f9fa', borderTopLeftRadius: 30, borderTopRightRadius: 30, height: '90%', padding: 24 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
+  // Analytics Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.8)', justifyContent: 'flex-end' },
+  modalContainer: { backgroundColor: '#f8fafc', borderTopLeftRadius: 35, borderTopRightRadius: 35, height: '92%', padding: 25 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  modalTitle: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
 
-  // Score card
-  scoreCard: { borderRadius: 20, padding: 22, flexDirection: 'row', marginBottom: 20, gap: 20 },
-  scoreLeft: { alignItems: 'center', justifyContent: 'center', width: 90 },
-  scoreNum: { fontSize: 52, fontWeight: '900', color: '#fff', lineHeight: 58 },
-  scoreLabel: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 6, textAlign: 'center' },
+  scoreCard: { borderRadius: 25, padding: 25, flexDirection: 'row', marginBottom: 20, elevation: 8 },
+  scoreLeft: { alignItems: 'center', justifyContent: 'center', width: 100 },
+  scoreNum: { fontSize: 56, fontWeight: '900', color: '#fff' },
+  scoreLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 5, fontWeight: '700', textTransform: 'uppercase' },
   scoreRight: { flex: 1, justifyContent: 'center' },
-  starBarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  starBarLabel: { flexDirection: 'row', alignItems: 'center', width: 28 },
-  starBarNum: { color: '#fff', fontSize: 11, marginLeft: 2 },
-  starBarTrack: { flex: 1, height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3, overflow: 'hidden' },
-  starBarFill: { height: '100%', borderRadius: 3 },
-  starBarCount: { color: 'rgba(255,255,255,0.8)', fontSize: 11, width: 22, textAlign: 'right' },
+  starBarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  starBarLabel: { flexDirection: 'row', alignItems: 'center', width: 30 },
+  starBarNum: { color: '#fff', fontSize: 12, marginLeft: 4, fontWeight: '800' },
+  starBarTrack: { flex: 1, height: 7, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4, overflow: 'hidden', marginHorizontal: 10 },
+  starBarFill: { height: '100%', borderRadius: 4 },
+  starBarCount: { color: 'rgba(255,255,255,0.9)', fontSize: 11, width: 25, textAlign: 'right', fontWeight: '700' },
 
-  // Sentiment
   sentimentRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  sentimentCard: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center', elevation: 2, borderTopWidth: 4 },
-  sentimentNum: { fontSize: 28, fontWeight: '800', marginTop: 8 },
-  sentimentLabel: { fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 4, lineHeight: 16 },
+  sentimentCard: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 15, alignItems: 'center', elevation: 3, borderTopWidth: 5 },
+  sentimentNum: { fontSize: 26, fontWeight: '900', marginTop: 8 },
+  sentimentLabel: { fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 5, fontWeight: '700', textTransform: 'uppercase' },
 
-  // Analytics card
-  analyticsCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16, elevation: 2 },
-  analyticsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 10 },
-  analyticsTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
+  analyticsCard: { backgroundColor: '#fff', borderRadius: 25, padding: 20, marginBottom: 15, elevation: 3 },
+  analyticsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 12 },
+  analyticsTitle: { fontSize: 17, fontWeight: '800', color: '#1e293b' },
 
-  // Volume
-  volumeRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  volumeItem: { alignItems: 'center', width: 80 },
-  volumeIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  volumeNum: { fontSize: 22, fontWeight: '800', color: '#1e293b' },
-  volumeLabel: { fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 2, marginBottom: 8 },
-  volumeBarTrack: { width: 8, height: 60, backgroundColor: '#f1f5f9', borderRadius: 4, overflow: 'hidden', justifyContent: 'flex-end' },
-  volumeBarFill: { width: '100%', borderRadius: 4 },
-  volumePct: { fontSize: 11, color: '#94a3b8', marginTop: 6 },
+  volumeRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10 },
+  volumeItem: { alignItems: 'center', width: 100 },
+  volumeIcon: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  volumeNum: { fontSize: 24, fontWeight: '900', color: '#1e293b' },
+  volumeLabel: { fontSize: 11, color: '#64748b', textAlign: 'center', marginBottom: 12, fontWeight: '700' },
+  volumeBarTrack: { width: 10, height: 70, backgroundColor: '#f1f5f9', borderRadius: 5, overflow: 'hidden', justifyContent: 'flex-end' },
+  volumeBarFill: { width: '100%', borderRadius: 5 },
+  volumePct: { fontSize: 12, color: '#34495e', marginTop: 8, fontWeight: '800' },
 
-  // Category
-  catRow: { marginBottom: 16 },
-  catLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  catLabel: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
-  catAvg: { fontSize: 14, fontWeight: '700' },
-  catTrack: { height: 8, backgroundColor: '#f1f5f9', borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
-  catFill: { height: '100%', borderRadius: 4 },
-  catCount: { fontSize: 11, color: '#94a3b8' },
+  catRow: { marginBottom: 20 },
+  catLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  catLabel: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  catAvg: { fontSize: 15, fontWeight: '900' },
+  catTrack: { height: 10, backgroundColor: '#f1f5f9', borderRadius: 5, overflow: 'hidden', marginBottom: 6 },
+  catFill: { height: '100%', borderRadius: 5 },
+  catCount: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
 
-  // Summary gradient
-  summaryGrad: { borderRadius: 20, padding: 20, marginBottom: 10 },
+  cardFooterActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  reviewDeleteBtn: { padding: 5, borderRadius: 8, backgroundColor: '#fef2f2' },
+
+  summaryGrad: { borderRadius: 25, padding: 25, marginBottom: 15 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  summaryItem: { alignItems: 'center', gap: 6 },
-  summaryValue: { fontSize: 26, fontWeight: '800', color: '#fff' },
-  summaryLabel: { fontSize: 11, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  summaryItem: { alignItems: 'center', gap: 8 },
+  summaryValue: { fontSize: 24, fontWeight: '900', color: '#fff' },
+  summaryLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '700', textTransform: 'uppercase' },
 
-  // Reel Upload Styles
-  uploadForm: { marginTop: 10 },
-  inputLabel: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 8 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', paddingHorizontal: 12, height: 50 },
-  inputIcon: { marginRight: 10 },
-  textInput: { flex: 1, fontSize: 15, color: '#1e293b' },
-  videoPreviewPlaceholder: { height: 150, backgroundColor: '#f1f5f9', borderRadius: 16, marginTop: 20, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#cbd5e1' },
-  videoPreviewText: { marginTop: 10, color: '#64748b', fontSize: 14, fontWeight: '600' },
-  uploadButton: { height: 55, borderRadius: 15, marginTop: 35, overflow: 'hidden', elevation: 4, shadowColor: '#7e22ce', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-  buttonGradient: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
-  uploadButtonText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
-  disabledButton: { opacity: 0.8, elevation: 0 },
+  // Reels
+  reelManageCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 25, marginBottom: 12, elevation: 3 },
+  reelPreviewBox: { width: 60, height: 60, borderRadius: 15, backgroundColor: '#f1f5f9', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  reelPreviewDuration: { position: 'absolute', bottom: 4, right: 4, fontSize: 8, color: '#fff', fontWeight: '900', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 4, borderRadius: 4 },
+  reelManageInfo: { flex: 1, marginLeft: 15 },
+  reelManageTitle: { fontSize: 16, fontWeight: '800', color: '#1e293b' },
+  reelManageDesc: { fontSize: 13, color: '#64748b', marginTop: 3 },
+  reelManageDate: { fontSize: 11, color: '#94a3b8', marginTop: 6, fontWeight: '600' },
+  reelActionBtns: { flexDirection: 'row', gap: 10 },
+  reelEditBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  reelDeleteBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center' },
 
-  // New Form Styles
-  formHeader: { padding: 24, borderTopLeftRadius: 30, borderTopRightRadius: 30 },
+  // Form
+  formHeader: { padding: 30, borderTopLeftRadius: 35, borderTopRightRadius: 35 },
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  formTitle: { fontSize: 22, fontWeight: '900', color: '#fff' },
-  formSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
-  closeModalBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  
-  videoPicker: { borderRadius: 20, overflow: 'hidden', marginTop: 10 },
-  pickerGradient: { padding: 30, alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#cbd5e1', borderRadius: 20 },
-  pickerIconBg: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', marginBottom: 12, elevation: 2 },
-  pickerTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b' },
-  pickerSub: { fontSize: 12, color: '#64748b', marginTop: 4 },
-
-  selectedVideoCard: { backgroundColor: '#fff', borderRadius: 20, padding: 16, marginTop: 10, borderWidth: 1, borderColor: '#e2e8f0', elevation: 2 },
+  formTitle: { fontSize: 24, fontWeight: '900', color: '#fff' },
+  formSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 5, fontWeight: '600' },
+  closeModalBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  uploadForm: { marginTop: 10 },
+  inputLabel: { fontSize: 14, fontWeight: '800', color: '#64748b', marginBottom: 10, marginLeft: 5, textTransform: 'uppercase' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, borderWidth: 1.5, borderColor: '#f1f5f9', paddingHorizontal: 15, height: 55 },
+  inputIcon: { marginRight: 12 },
+  textInput: { flex: 1, fontSize: 16, color: '#1e293b', fontWeight: '600' },
+  videoPicker: { borderRadius: 25, overflow: 'hidden', marginTop: 5 },
+  pickerGradient: { padding: 35, alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 25, backgroundColor: '#f8fafc' },
+  pickerIconBg: { width: 70, height: 70, borderRadius: 20, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', marginBottom: 15, elevation: 5 },
+  pickerTitle: { fontSize: 17, fontWeight: '800', color: '#1e293b' },
+  pickerSub: { fontSize: 13, color: '#94a3b8', marginTop: 5, fontWeight: '600' },
+  selectedVideoCard: { backgroundColor: '#fff', borderRadius: 20, padding: 18, marginTop: 10, borderWidth: 1.5, borderColor: '#34495e', elevation: 4 },
   videoInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  videoIconBox: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#f5f3ff', justifyContent: 'center', alignItems: 'center' },
-  videoFileName: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  videoFileSize: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  removeVideoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff1f2', justifyContent: 'center', alignItems: 'center' },
-  
-  helperText: { fontSize: 11, color: '#e74c3c', marginTop: 12, textAlign: 'center', fontWeight: '600' },
-
-  // Tab Styles
-  tabContainer: { flexDirection: 'row', backgroundColor: '#fff', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderBottomWidth: 3, borderBottomColor: 'transparent', gap: 8 },
-  activeTab: { borderBottomColor: '#7e22ce' },
-  tabText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
-  activeTabText: { color: '#7e22ce' },
-
-  // Reel Manage Styles
-  reelManageCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 5 },
-  reelPreviewBox: { width: 50, height: 50, borderRadius: 12, backgroundColor: '#f5f3ff', justifyContent: 'center', alignItems: 'center' },
-  reelPreviewDuration: { fontSize: 9, color: '#7e22ce', fontWeight: '800', marginTop: 2 },
-  reelManageInfo: { flex: 1, marginLeft: 12 },
-  reelManageTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-  reelManageDesc: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  reelManageDate: { fontSize: 10, color: '#94a3b8', marginTop: 4 },
-  reelActionBtns: { flexDirection: 'row', gap: 8 },
-  reelEditBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center' },
-  reelDeleteBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center' },
+  videoIconBox: { width: 50, height: 50, borderRadius: 15, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  videoFileName: { fontSize: 15, fontWeight: '800', color: '#1e293b' },
+  videoFileSize: { fontSize: 12, color: '#94a3b8', marginTop: 3, fontWeight: '600' },
+  removeVideoBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#fef2f2', justifyContent: 'center', alignItems: 'center' },
+  uploadButton: { height: 60, borderRadius: 20, marginTop: 40, overflow: 'hidden', elevation: 8 },
+  buttonGradient: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
+  uploadButtonText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  disabledButton: { opacity: 0.6 },
+  helperText: { fontSize: 12, color: '#ef4444', marginTop: 15, textAlign: 'center', fontWeight: '800' },
+  inputError: { borderColor: '#ef4444', backgroundColor: '#fff5f5' },
+  liveErrorText: { color: '#ef4444', fontSize: 12, fontWeight: '700', marginTop: 5, marginLeft: 5 },
 });
 
 export default FeedbackManageScreen;

@@ -18,6 +18,12 @@ export const getImageUrl = (imagePath) => {
     return imagePath;
   }
 
-  // If it's just a filename
-  return `${UPLOAD_URL}/${imagePath}`;
+  // If it's just a filename or relative path
+  if (!imagePath || imagePath.trim() === '') {
+    return 'https://via.placeholder.com/150';
+  }
+
+  const cleanPath = imagePath.toString().replace(/^uploads[/\\]/, '');
+
+  return `${UPLOAD_URL}/${cleanPath}`;
 };

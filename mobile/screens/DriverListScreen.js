@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Image, Linking, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Image, Linking, ScrollView, SafeAreaView, Platform, Modal } from 'react-native';
 import { driverService } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,8 @@ const DriverListScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [filterAvailable, setFilterAvailable] = useState('Available');
   const [filterExperience, setFilterExperience] = useState('All');
+  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchDrivers = async () => {
     try {
@@ -39,134 +41,252 @@ const DriverListScreen = () => {
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.avatarContainer}>
+      <View style={styles.cardTop}>
+        <View style={styles.avatarWrapper}>
           {item.image && item.image !== 'default-driver.png' ? (
             <Image source={{ uri: item.image }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={40} color="#cbd5e1" />
+              <Ionicons name="person" size={35} color="#cbd5e1" />
             </View>
           )}
-          <View style={[styles.statusDot, { backgroundColor: item.available ? '#2ecc71' : '#e74c3c' }]} />
+          <View style={[styles.statusIndicator, { backgroundColor: item.available ? '#2ecc71' : '#e74c3c' }]} />
         </View>
         
-        <View style={styles.headerInfo}>
+        <View style={styles.driverInfo}>
           <Text style={styles.driverName}>{item.name}</Text>
-          <View style={styles.experienceTag}>
-            <Ionicons name="ribbon-outline" size={12} color="#2e64e5" />
-            <Text style={styles.experienceText}>{item.experience} Experience</Text>
+          <View style={styles.expBadge}>
+            <Ionicons name="ribbon" size={14} color="#34495e" />
+            <Text style={styles.expText}>{item.experience} Years Exp.</Text>
           </View>
         </View>
         
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceValue}>LKR {item.price}</Text>
-          <Text style={styles.priceUnit}>/ day</Text>
+        <View style={styles.priceBox}>
+          <Text style={styles.priceSymbol}>LKR</Text>
+          <Text style={styles.priceAmount}>{item.price}</Text>
+          <Text style={styles.pricePer}>/day</Text>
         </View>
       </View>
 
-      <View style={styles.cardBody}>
-        <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+      <View style={styles.cardMiddle}>
+        <Text style={styles.bio} numberOfLines={2}>
+          {item.description || "Experienced professional driver committed to your safety and comfort throughout your journey."}
+        </Text>
         
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Ionicons name="id-card-outline" size={16} color="#64748b" />
-            <Text style={styles.statText}>{item.licenseNo}</Text>
+        <View style={styles.detailsRow}>
+          <View style={styles.detailTag}>
+            <Ionicons name="card-outline" size={14} color="#64748b" />
+            <Text style={styles.detailLabel}>{item.licenseNo}</Text>
           </View>
-          <View style={styles.statItem}>
-            <Ionicons name="call-outline" size={16} color="#64748b" />
-            <Text style={styles.statText}>{item.phone}</Text>
+          <View style={styles.detailTag}>
+            <Ionicons name="mail-outline" size={14} color="#64748b" />
+            <Text style={styles.detailLabel} numberOfLines={1}>{item.email || 'Contact for info'}</Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.cardActions}>
+      <View style={styles.cardBottom}>
         <TouchableOpacity 
-          style={styles.callButton} 
+          style={styles.primaryAction} 
           onPress={() => handleCall(item.phone)}
+          activeOpacity={0.8}
         >
-          <Ionicons name="call" size={18} color="#fff" />
-          <Text style={styles.callButtonText}>Contact Now</Text>
+          <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.actionGradient}>
+            <Ionicons name="call" size={18} color="#fff" />
+            <Text style={styles.actionText}>Contact Driver</Text>
+          </LinearGradient>
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={styles.detailsButton}
-          onPress={() => Alert.alert('Driver Info', `ID: ${item.idNo}\nEmail: ${item.email || 'N/A'}`)}
+          style={styles.secondaryAction}
+          onPress={() => {
+            setSelectedDriver(item);
+            setModalVisible(true);
+          }}
         >
-          <Text style={styles.detailsButtonText}>View Details</Text>
+          <Ionicons name="information-circle-outline" size={20} color="#34495e" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#2e64e5" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#2e64e5', '#1c3d8a']} style={styles.header}>
-        <Text style={styles.headerTitle}>Professional Drivers</Text>
-        <Text style={styles.headerSub}>Experienced chauffeurs for your safety</Text>
+      <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.header}>
+        <SafeAreaView>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerTitle}>Expert Drivers</Text>
+              <Text style={styles.headerSub}>Reliable chauffeurs for your tours</Text>
+            </View>
+            <View style={styles.headerBadge}>
+              <Ionicons name="shield-checkmark" size={20} color="#fff" />
+            </View>
+          </View>
+
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            contentContainerStyle={styles.filterScroll}
+            style={styles.filterContainer}
+          >
+            <TouchableOpacity 
+              style={[styles.filterChip, filterAvailable === 'Available' && styles.activeChip]} 
+              onPress={() => setFilterAvailable('Available')}
+            >
+              <Text style={[styles.filterText, filterAvailable === 'Available' && styles.activeFilterText]}>Available Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.filterChip, filterAvailable === 'All' && styles.activeChip]} 
+              onPress={() => setFilterAvailable('All')}
+            >
+              <Text style={[styles.filterText, filterAvailable === 'All' && styles.activeFilterText]}>All Status</Text>
+            </TouchableOpacity>
+
+            <View style={styles.vDivider} />
+
+            {['All Exp', '3+ Years', '5+ Years', '10+ Years'].map(exp => {
+              const val = exp === 'All Exp' ? 'All' : exp.split(' ')[0];
+              return (
+                <TouchableOpacity 
+                  key={exp}
+                  style={[styles.filterChip, filterExperience === val && styles.activeChip]} 
+                  onPress={() => setFilterExperience(val)}
+                >
+                  <Text style={[styles.filterText, filterExperience === val && styles.activeFilterText]}>{exp}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
 
-      <View style={styles.filterSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          <TouchableOpacity 
-            style={[styles.filterChip, filterAvailable === 'Available' && styles.activeChip]} 
-            onPress={() => setFilterAvailable('Available')}
-          >
-            <Text style={[styles.filterText, filterAvailable === 'Available' && styles.activeFilterText]}>Available Only</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterChip, filterAvailable === 'All' && styles.activeChip]} 
-            onPress={() => setFilterAvailable('All')}
-          >
-            <Text style={[styles.filterText, filterAvailable === 'All' && styles.activeFilterText]}>All Status</Text>
-          </TouchableOpacity>
-
-          <View style={styles.filterDivider} />
-
-          {['All Exp', '3+ Years', '5+ Years', '10+ Years'].map(exp => {
-            const val = exp === 'All Exp' ? 'All' : exp.split(' ')[0];
-            return (
-              <TouchableOpacity 
-                key={exp}
-                style={[styles.filterChip, filterExperience === val && styles.activeChip]} 
-                onPress={() => setFilterExperience(val)}
-              >
-                <Text style={[styles.filterText, filterExperience === val && styles.activeFilterText]}>{exp}</Text>
-              </TouchableOpacity>
-            )
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#34495e" />
+          <Text style={styles.loadingText}>Finding best drivers...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={drivers.filter(d => {
+            if (filterAvailable === 'Available' && !d.available) return false;
+            const exp = parseInt(d.experience) || 0;
+            if (filterExperience === '3+' && exp < 3) return false;
+            if (filterExperience === '5+' && exp < 5) return false;
+            if (filterExperience === '10+' && exp < 10) return false;
+            return true;
           })}
-        </ScrollView>
-      </View>
+          renderItem={renderItem}
+          keyExtractor={item => item._id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={80} color="#cbd5e1" />
+              <Text style={styles.emptyTitle}>No matching drivers</Text>
+              <Text style={styles.emptySub}>Try changing your filters or check back later</Text>
+            </View>
+          }
+        />
+      )}
 
-      <FlatList
-        data={drivers.filter(d => {
-          if (filterAvailable === 'Available' && !d.available) return false;
-          const exp = parseInt(d.experience) || 0;
-          if (filterExperience === '3+' && exp < 3) return false;
-          if (filterExperience === '5+' && exp < 5) return false;
-          if (filterExperience === '10+' && exp < 10) return false;
-          return true;
-        })}
-        renderItem={renderItem}
-        keyExtractor={item => item._id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={60} color="#cbd5e1" />
-            <Text style={styles.emptyText}>No drivers available at the moment</Text>
+      {/* Driver Profile Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.modalHeader}>
+              <TouchableOpacity 
+                style={styles.modalCloseBtn}
+                onPress={() => setModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+              <View style={styles.modalAvatarWrapper}>
+                {selectedDriver?.image && selectedDriver.image !== 'default-driver.png' ? (
+                  <Image source={{ uri: selectedDriver.image }} style={styles.modalAvatar} />
+                ) : (
+                  <View style={styles.modalAvatarPlaceholder}>
+                    <Ionicons name="person" size={40} color="#cbd5e1" />
+                  </View>
+                )}
+                <View style={[styles.modalStatus, { backgroundColor: selectedDriver?.available ? '#2ecc71' : '#e74c3c' }]} />
+              </View>
+              <Text style={styles.modalName}>{selectedDriver?.name}</Text>
+              <View style={styles.modalBadge}>
+                <Ionicons name="ribbon-outline" size={14} color="#fff" />
+                <Text style={styles.modalBadgeText}>{selectedDriver?.experience} Years Experience</Text>
+              </View>
+            </LinearGradient>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalSectionTitle}>Driver Details</Text>
+              
+              <View style={styles.detailGrid}>
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconBg}>
+                    <Ionicons name="card-outline" size={20} color="#34495e" />
+                  </View>
+                  <View>
+                    <Text style={styles.detailLabel}>License No</Text>
+                    <Text style={styles.detailValue}>{selectedDriver?.licenseNo}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconBg}>
+                    <Ionicons name="call-outline" size={20} color="#34495e" />
+                  </View>
+                  <View>
+                    <Text style={styles.detailLabel}>Phone Number</Text>
+                    <Text style={styles.detailValue}>{selectedDriver?.phone}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconBg}>
+                    <Ionicons name="mail-outline" size={20} color="#34495e" />
+                  </View>
+                  <View>
+                    <Text style={styles.detailLabel}>Email Address</Text>
+                    <Text style={styles.detailValue} numberOfLines={1}>{selectedDriver?.email || 'Not Provided'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconBg}>
+                    <Ionicons name="cash-outline" size={20} color="#34495e" />
+                  </View>
+                  <View>
+                    <Text style={styles.detailLabel}>Daily Rate</Text>
+                    <Text style={styles.detailValue}>LKR {selectedDriver?.price}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.modalSectionTitle}>About Driver</Text>
+              <Text style={styles.modalBio}>
+                {selectedDriver?.description || "A professional and dedicated driver with extensive knowledge of local routes and a commitment to passenger safety and punctuality."}
+              </Text>
+
+              <TouchableOpacity 
+                style={styles.modalCallBtn}
+                onPress={() => handleCall(selectedDriver?.phone)}
+              >
+                <LinearGradient colors={['#34495e', '#2c3e50']} style={styles.modalCallGradient}>
+                  <Ionicons name="call" size={20} color="#fff" />
+                  <Text style={styles.modalCallText}>Call Now</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-        }
-      />
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -180,213 +300,425 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    marginTop: 15,
+    color: '#64748b',
+    fontWeight: '600'
   },
   header: {
     padding: 25,
-    paddingTop: 50,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingTop: Platform.OS === 'ios' ? 10 : 40,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#fff',
+    letterSpacing: 0.5
   },
   headerSub: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
+    marginTop: 2
+  },
+  headerBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    padding: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)'
+  },
+  filterContainer: {
     marginTop: 5,
-  },
-  listContainer: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
-  },
-  filterSection: {
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    marginBottom: 5
   },
   filterScroll: {
-    paddingHorizontal: 20,
-    alignItems: 'center',
+    paddingRight: 20,
+    alignItems: 'center'
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(255,255,255,0.15)'
   },
   activeChip: {
-    backgroundColor: '#2e64e5',
-    borderColor: '#2e64e5',
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+    elevation: 5
   },
   filterText: {
     fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '800',
   },
   activeFilterText: {
-    color: '#fff',
+    color: '#34495e',
   },
-  filterDivider: {
-    width: 1,
+  vDivider: {
+    width: 1.5,
     height: 20,
-    backgroundColor: '#cbd5e1',
-    marginRight: 10,
-    marginLeft: 5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginHorizontal: 10,
+  },
+  listContainer: {
+    padding: 20,
+    paddingTop: 15,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 24,
+    borderRadius: 30,
     padding: 20,
     marginBottom: 20,
-    elevation: 4,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
   },
-  cardHeader: {
+  cardTop: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatarContainer: {
+  avatarWrapper: {
     position: 'relative',
+    borderWidth: 2,
+    borderColor: '#f1f5f9',
+    borderRadius: 35,
+    padding: 2
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#f1f5f9',
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
   },
   avatarPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#f1f5f9',
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#f8fafc',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statusDot: {
+  statusIndicator: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
     borderColor: '#fff',
   },
-  headerInfo: {
+  driverInfo: {
     flex: 1,
     marginLeft: 15,
   },
   driverName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '900',
     color: '#1e293b',
+    letterSpacing: 0.3
   },
-  experienceTag: {
+  expBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
+    backgroundColor: '#f1f5f9',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8
   },
-  experienceText: {
+  expText: {
+    fontSize: 11,
+    color: '#34495e',
+    marginLeft: 5,
+    fontWeight: '800',
+  },
+  priceBox: {
+    alignItems: 'flex-end',
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#f1f5f9'
+  },
+  priceSymbol: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '800'
+  },
+  priceAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#34495e',
+  },
+  pricePer: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '600'
+  },
+  cardMiddle: {
+    marginTop: 18,
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  bio: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 22,
+    fontWeight: '500'
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  detailTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 15,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10
+  },
+  detailLabel: {
     fontSize: 12,
     color: '#64748b',
-    marginLeft: 4,
-    fontWeight: '600',
-  },
-  priceContainer: {
-    alignItems: 'flex-end',
-  },
-  priceValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2e64e5',
-  },
-  priceUnit: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  cardBody: {
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  description: {
-    fontSize: 14,
-    color: '#475569',
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    marginTop: 15,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  statText: {
-    fontSize: 13,
-    color: '#64748b',
     marginLeft: 6,
-    fontWeight: '500',
+    fontWeight: '700',
   },
-  cardActions: {
+  cardBottom: {
     flexDirection: 'row',
     marginTop: 20,
-    justifyContent: 'space-between',
+    alignItems: 'center'
   },
-  callButton: {
-    flex: 0.65,
-    backgroundColor: '#2e64e5',
+  primaryAction: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#34495e',
+    shadowOpacity: 0.2
+  },
+  actionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 15,
-    elevation: 2,
+    paddingVertical: 15,
   },
-  callButtonText: {
+  actionText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontWeight: '900',
+    marginLeft: 10,
+    letterSpacing: 0.5
   },
-  detailsButton: {
-    flex: 0.3,
+  secondaryAction: {
+    width: 50,
+    height: 50,
     backgroundColor: '#f1f5f9',
+    borderRadius: 18,
+    marginLeft: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 15,
-  },
-  detailsButtonText: {
-    color: '#475569',
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 100,
+    paddingTop: 80,
   },
-  emptyText: {
-    fontSize: 16,
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1e293b',
+    marginTop: 20
+  },
+  emptySub: {
+    fontSize: 14,
     color: '#94a3b8',
-    marginTop: 15,
+    marginTop: 8,
     fontWeight: '500',
+    textAlign: 'center',
+    paddingHorizontal: 40
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    overflow: 'hidden',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 15
+  },
+  modalHeader: {
+    alignItems: 'center',
+    padding: 30,
+    paddingTop: 40
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 8,
+    borderRadius: 12
+  },
+  modalAvatarWrapper: {
+    position: 'relative',
+    padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 50,
+    marginBottom: 15
+  },
+  modalAvatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: '#fff'
+  },
+  modalAvatarPlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  modalStatus: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 3,
+    borderColor: '#fff'
+  },
+  modalName: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 5
+  },
+  modalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10
+  },
+  modalBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    marginLeft: 8
+  },
+  modalBody: {
+    padding: 25
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#1e293b',
+    marginBottom: 15,
+    marginTop: 5
+  },
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 10
+  },
+  detailItem: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#f1f5f9'
+  },
+  detailIconBg: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    elevation: 1
+  },
+  detailLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '800',
+    textTransform: 'uppercase'
+  },
+  detailValue: {
+    fontSize: 12,
+    color: '#34495e',
+    fontWeight: '900',
+    marginTop: 2
+  },
+  modalBio: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 22,
+    fontWeight: '500',
+    marginBottom: 25
+  },
+  modalCallBtn: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#34495e',
+    shadowOpacity: 0.3,
+    shadowRadius: 10
+  },
+  modalCallGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18
+  },
+  modalCallText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '900',
+    marginLeft: 10,
+    letterSpacing: 0.5
   }
 });
 

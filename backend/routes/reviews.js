@@ -1,11 +1,14 @@
 const express = require('express');
-const { getResidenceReviews, addReview, getAllReviews, getGuideReviews } = require('../controllers/reviews');
+const { getResidenceReviews, addReview, getAllReviews, getGuideReviews, deleteReview } = require('../controllers/reviews');
 
 const router = express.Router();
 
 router.route('/')
   .get(getAllReviews)
   .post(addReview);
+
+router.route('/:id')
+  .delete(deleteReview);
 
 router.route('/residence/:residenceId')
   .get(getResidenceReviews);

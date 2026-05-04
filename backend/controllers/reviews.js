@@ -65,3 +65,19 @@ exports.addReview = async (req, res, next) => {
     res.status(201).json({ success: true, data: feedback });
   } catch (err) { next(err); }
 };
+
+// @desc    Delete a review
+// @route   DELETE /api/reviews/:id
+exports.deleteReview = async (req, res, next) => {
+  try {
+    const review = await Feedback.findById(req.params.id);
+
+    if (!review) {
+      return next(new ErrorResponse(`Review not found with id of ${req.params.id}`, 404));
+    }
+
+    await review.deleteOne();
+
+    res.status(200).json({ success: true, data: {} });
+  } catch (err) { next(err); }
+};

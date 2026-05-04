@@ -68,6 +68,7 @@ export const reviewService = {
   getResidenceReviews: (residenceId) => api.get(`/reviews/residence/${residenceId}`),
   getGuideReviews: (guideId) => api.get(`/reviews/guide/${guideId}`),
   addReview: (data) => api.post('/reviews', data),
+  deleteReview: (id) => api.delete(`/reviews/${id}`),
 };
 
 export const reelService = {
